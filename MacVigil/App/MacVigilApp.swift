@@ -19,7 +19,8 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
             manager.loadPreferences()
             await manager.prepareOnLaunch()
             updater.startBackgroundMonitoring(isVigilActive: { [weak manager] in
-                manager?.isActive ?? false
+                guard let manager else { return false }
+                return manager.isActive || manager.isLiveReconfiguring
             })
             self.power?.startBackgroundMonitoring()
 
