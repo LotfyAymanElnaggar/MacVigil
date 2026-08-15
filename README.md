@@ -27,16 +27,16 @@ MacVigil keeps that work protected while letting you choose exactly what stays a
 
 ## Native macOS interface
 
-On **macOS 26 and later**, MacVigil uses Apple's actual SwiftUI Liquid Glass APIs for the menu controls **and the Settings window chrome**. It no longer tries to imitate Liquid Glass with custom blue/purple gradients or heavy blur layers.
+On **macOS 26 and later**, MacVigil uses Apple's actual SwiftUI Liquid Glass APIs selectively for important menu controls while Settings follows the same structural hierarchy as a native macOS Settings-style app. It does not imitate Liquid Glass with custom blue/purple gradients, and it no longer places giant glass surfaces behind the entire Settings sidebar or content pane.
 
 The design uses native system behavior throughout:
 
-- native `NavigationSplitView` + sidebar `List` for Settings
-- native Liquid Glass on the Settings sidebar surface, status surface, detail header, and detail pane on macOS 26+
-- native grouped `Form` sections kept readable inside those glass panes
-- system toggles, sliders, labels, buttons, and selection behavior
-- native Liquid Glass for mode cards, duration choices, Start/Stop, update actions, and quick destinations on macOS 26+
-- compatibility fallback to standard macOS materials and controls on macOS 13–15
+- native `NavigationSplitView` + integrated sidebar `List` for Settings
+- native grouped `Form` sections on the stable Settings content surface
+- system toggles, sliders, labels, buttons, navigation titles, focus, and selection behavior
+- native Liquid Glass for important menu controls such as mode cards, duration choices, Start/Stop, update actions, and quick destinations on macOS 26+
+- no custom full-pane glass slab around the Settings sidebar, title, or detail content
+- compatibility with standard macOS appearance on macOS 13–15
 
 The interaction rule remains simple: **the whole visible control is clickable**. You do not need to aim directly at its label text.
 
@@ -54,9 +54,11 @@ Advanced protection switches stay in Settings instead of crowding the everyday p
 
 ## Settings
 
-Settings combines native macOS navigation with native Liquid Glass chrome. On macOS 26+, the sidebar, status footer, section header, and detail surface are rendered with Apple's real glass effect while the grouped Forms remain legible inside the glass pane.
+Settings is built to feel structurally close to macOS System Settings rather than like a stack of custom glass cards. The sidebar is integrated into the `NavigationSplitView`, the selected section title is the native navigation title, and grouped `Form` content sits directly on the normal system content surface.
 
-The sidebar is still a system `List`, so selection, row hit targets, keyboard navigation, focus, hover behavior, spacing, and appearance follow macOS conventions automatically.
+There is deliberately **less glass in Settings**. Liquid Glass is allowed to come from the operating system where appropriate instead of wrapping the sidebar, title, and complete detail pane in separate rounded glass containers. The bottom Vigil status is integrated into the sidebar with a standard bar-style footer rather than a floating glass card.
+
+The native sidebar means selection, row hit targets, keyboard navigation, focus, hover behavior, spacing, and appearance follow macOS conventions automatically. Settings mode and duration controls also use standard macOS button styles instead of the menu panel's custom glass presentation.
 
 Settings has dedicated sections for:
 
