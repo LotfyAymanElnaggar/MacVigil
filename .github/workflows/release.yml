@@ -194,6 +194,7 @@ jobs:
             MacVigil/Core/Hotkeys/GlobalHotkeyManager.swift
             MacVigil/Core/CLI/CLIProtocol.swift
             MacVigil/Core/CLI/CLIControlServer.swift
+            MacVigil/Core/CLI/CLIInstallManager.swift
             MacVigil/UI/PolishedMenuBarView.swift
             MacVigil/UI/MacVigilRootView.swift
             MacVigil/UI/PowerIntelligenceView.swift
@@ -201,6 +202,7 @@ jobs:
             MacVigil/UI/InteractionReliabilityView.swift
             MacVigil/UI/LiquidGlassMenuView.swift
             MacVigil/UI/MacVigilSettingsView.swift
+            MacVigil/UI/SettingsSceneContainer.swift
             MacVigil/UI/StatisticsView.swift
           )
 
@@ -266,7 +268,7 @@ jobs:
             xcrun lipo -archs "$MACOS_DIR/$BIN" | grep -q x86_64
           done
           "$MACOS_DIR/macvigil" help | grep -q "control MacVigil from Terminal"
-          echo "Universal release app, watchdog, macvigil CLI, native Liquid Glass availability, statistics, hotkeys, and app icon confirmed."
+          echo "Universal release app, watchdog, macvigil CLI, Settings integration, native Liquid Glass availability, statistics, hotkeys, and app icon confirmed."
 
       - name: Create release assets
         shell: bash
