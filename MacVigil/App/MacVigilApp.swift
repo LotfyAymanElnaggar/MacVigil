@@ -7,6 +7,7 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
     weak var updater: UpdateManager?
     weak var jobs: JobAwareController?
     weak var power: PowerIntelligenceController?
+    weak var hotkeys: GlobalHotkeyManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
@@ -23,11 +24,13 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
                 return manager.isActive || manager.isLiveReconfiguring
             })
             self.power?.startBackgroundMonitoring()
+            self.hotkeys?.start()
             await self.jobs?.refreshProcesses()
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        hotkeys?.stop()
         manager?.handleAppTermination()
     }
 
@@ -59,22 +62,26 @@ struct MacVigilApp: App {
     @StateObject private var updater: UpdateManager
     @StateObject private var jobs: JobAwareController
     @StateObject private var power: PowerIntelligenceController
+    @StateObject private var hotkeys: GlobalHotkeyManager
 
     init() {
         let manager = VigilManager()
         let updater = UpdateManager()
         let jobs = JobAwareController(manager: manager)
         let power = PowerIntelligenceController(manager: manager)
+        let hotkeys = GlobalHotkeyManager(manager: manager)
 
         _manager = StateObject(wrappedValue: manager)
         _updater = StateObject(wrappedValue: updater)
         _jobs = StateObject(wrappedValue: jobs)
         _power = StateObject(wrappedValue: power)
+        _hotkeys = StateObject(wrappedValue: hotkeys)
 
         appDelegate.manager = manager
         appDelegate.updater = updater
         appDelegate.jobs = jobs
         appDelegate.power = power
+        appDelegate.hotkeys = hotkeys
     }
 
     var body: some Scene {
@@ -83,7 +90,8 @@ struct MacVigilApp: App {
                 manager: manager,
                 updater: updater,
                 jobs: jobs,
-                power: power
+                power: power,
+                hotkeys: hotkeys
             )
             .onAppear { refreshDelegateReferences() }
         } label: {
@@ -97,11 +105,19 @@ struct MacVigilApp: App {
                 manager: manager,
                 updater: updater,
                 jobs: jobs,
-                power: power
+                power: power,
+                hotkeys: hotkeys
             )
             .onAppear { refreshDelegateReferences() }
         }
-        .defaultSize(width: 900, height: 650)
+        .defaultSize(width: 930, height: 680)
+        .windowResizability(.contentSize)
+
+        Window("MacVigil Statistics", id: "statistics") {
+            StatisticsWindowView(manager: manager, power: power)
+                .onAppear { refreshDelegateReferences() }
+        }
+        .defaultSize(width: 760, height: 650)
         .windowResizability(.contentSize)
 
         Window("Job Guard", id: "job-guard") {
@@ -131,5 +147,6 @@ struct MacVigilApp: App {
         appDelegate.updater = updater
         appDelegate.jobs = jobs
         appDelegate.power = power
+        appDelegate.hotkeys = hotkeys
     }
 }
