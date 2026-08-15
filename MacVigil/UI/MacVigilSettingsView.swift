@@ -9,11 +9,11 @@ struct MacVigilSettingsView: View {
     @ObservedObject var hotkeys: GlobalHotkeyManager
 
     @Environment(\.openWindow) private var openWindow
-    @State private var selection: Section? = .general
+    @State private var selection: SettingsSection? = .general
     @State private var batteryReserve = 15.0
     @State private var durationMinutes = 60.0
 
-    private enum Section: String, CaseIterable, Identifiable, Hashable {
+    private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case general = "General"
         case vigil = "Vigil"
         case jobGuard = "Job Guard"
@@ -41,7 +41,7 @@ struct MacVigilSettingsView: View {
         }
     }
 
-    private var currentSection: Section { selection ?? .general }
+    private var currentSection: SettingsSection { selection ?? .general }
 
     var body: some View {
         NavigationSplitView {
@@ -58,7 +58,7 @@ struct MacVigilSettingsView: View {
     }
 
     private var sidebar: some View {
-        List(Section.allCases, selection: $selection) { item in
+        List(SettingsSection.allCases, selection: $selection) { item in
             Label(item.rawValue, systemImage: item.icon)
                 .tag(item)
         }
@@ -135,8 +135,8 @@ struct MacVigilSettingsView: View {
     }
 
     private var general: some View {
-        Form {
-            Section("Startup & control") {
+        SwiftUI.Form {
+            SwiftUI.Section("Startup & control") {
                 settingToggle(
                     "Launch at login",
                     "Start MacVigil automatically after sign-in.",
@@ -163,7 +163,7 @@ struct MacVigilSettingsView: View {
                 }
             }
 
-            Section("Default mode") {
+            SwiftUI.Section("Default mode") {
                 HStack(spacing: 10) {
                     MVModeButton(profile: .computeGuard, selected: matches(.computeGuard)) {
                         Task { _ = await manager.changeModeLive(.computeGuard) }
@@ -178,7 +178,7 @@ struct MacVigilSettingsView: View {
                 .padding(.vertical, 4)
             }
 
-            Section("Default duration") {
+            SwiftUI.Section("Default duration") {
                 HStack(spacing: 7) {
                     durationButton("15m", .fifteenMinutes)
                     durationButton("30m", .thirtyMinutes)
@@ -200,7 +200,7 @@ struct MacVigilSettingsView: View {
                 }
             }
 
-            Section("Battery reserve") {
+            SwiftUI.Section("Battery reserve") {
                 Slider(value: $batteryReserve, in: 5...30, step: 1) { editing in
                     guard !editing else { return }
                     manager.lowBatteryCutoff = Int(batteryReserve.rounded())
@@ -219,21 +219,21 @@ struct MacVigilSettingsView: View {
     }
 
     private var vigil: some View {
-        Form {
-            Section {
+        SwiftUI.Form {
+            SwiftUI.Section {
                 Text("Presets populate these switches. Every major protection behavior remains independently controllable, including safe live changes while Vigil is active.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Sleep prevention") {
+            SwiftUI.Section("Sleep prevention") {
                 optionToggle("Prevent system sleep", "Keep the Mac from entering system sleep.", .preventSystemSleep)
                 optionToggle("Prevent idle system sleep", "Block idle sleep while work is protected.", .preventIdleSystemSleep)
                 optionToggle("Prevent display sleep", "Keep display sleep logically blocked.", .keepDisplayAwake)
                 optionToggle("Veto idle sleep requests", "Cancel cancellable idle-sleep requests.", .vetoIdleSleepRequests)
             }
 
-            Section("Closed-lid protection") {
+            SwiftUI.Section("Closed-lid protection") {
                 optionToggle("Global SleepDisabled", "Use pmset closed-lid protection when authorized.", .useGlobalSleepDisable)
                 optionToggle("Kernel clamshell guard", "Experimental low-level closed-lid protection.", .useKernelLidGuard)
                 optionToggle("Darken built-in display on lid close", "Reduce built-in backlight while protected.", .darkenBuiltinDisplayOnLidClose)
@@ -243,8 +243,8 @@ struct MacVigilSettingsView: View {
     }
 
     private var jobGuard: some View {
-        Form {
-            Section("Multi-job protection") {
+        SwiftUI.Form {
+            SwiftUI.Section("Multi-job protection") {
                 LabeledContent("Status") {
                     Text(jobs.isWatching
                          ? "\(jobs.activeJobCount) protected job\(jobs.activeJobCount == 1 ? "" : "s")"
@@ -264,7 +264,7 @@ struct MacVigilSettingsView: View {
                 .controlSize(.large)
             }
 
-            Section("Session ownership") {
+            SwiftUI.Section("Session ownership") {
                 Text("Changing modes or individual protection options changes only the power profile. Job Guard remains attached and continues to own when the session ends.")
                     .foregroundStyle(.secondary)
             }
@@ -273,8 +273,8 @@ struct MacVigilSettingsView: View {
     }
 
     private var hotkeySettings: some View {
-        Form {
-            Section {
+        SwiftUI.Form {
+            SwiftUI.Section {
                 settingToggle(
                     "Enable global hotkeys",
                     "Hotkeys work even when the MacVigil menu is closed.",
@@ -283,7 +283,7 @@ struct MacVigilSettingsView: View {
                 ) { hotkeys.setEnabled($0) }
             }
 
-            Section("Shortcuts") {
+            SwiftUI.Section("Shortcuts") {
                 ForEach(GlobalHotkeyManager.shortcuts) { shortcut in
                     LabeledContent {
                         Text(shortcut.keys)
@@ -301,7 +301,7 @@ struct MacVigilSettingsView: View {
                 }
             }
 
-            Section {
+            SwiftUI.Section {
                 Text("Closed-Lid Eco safety and authorization rules still apply when a hotkey is used. Mode hotkeys change the profile underneath the current session without detaching Job Guard.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -311,8 +311,8 @@ struct MacVigilSettingsView: View {
     }
 
     private var updates: some View {
-        Form {
-            Section("Background updates") {
+        SwiftUI.Form {
+            SwiftUI.Section("Background updates") {
                 settingToggle(
                     "Automatic checks",
                     "Check at launch, hourly while running, and after wake.",
@@ -335,7 +335,7 @@ struct MacVigilSettingsView: View {
                 }
             }
 
-            Section("Current version") {
+            SwiftUI.Section("Current version") {
                 LabeledContent("Installed") {
                     Text("MacVigil \(updater.currentVersion)")
                 }
@@ -369,8 +369,8 @@ struct MacVigilSettingsView: View {
     }
 
     private var powerSafety: some View {
-        Form {
-            Section("Battery & thermal") {
+        SwiftUI.Form {
+            SwiftUI.Section("Battery & thermal") {
                 optionToggle("Battery safety", "Stop protection at the configured reserve.", .enableBatterySafety)
                 optionToggle("Critical thermal cutoff", "Keep macOS thermal safety in control.", .enableThermalSafety)
 
@@ -385,7 +385,7 @@ struct MacVigilSettingsView: View {
                 }
             }
 
-            Section("Closed lid") {
+            SwiftUI.Section("Closed lid") {
                 settingToggle(
                     "Require external power for closed-lid mode",
                     "Release closed-lid protection if the Mac switches to battery.",
@@ -410,7 +410,7 @@ struct MacVigilSettingsView: View {
                 }
             }
 
-            Section {
+            SwiftUI.Section {
                 Label("Closed-lid workloads can generate significant heat. Keep the MacBook on a hard, ventilated surface — never in a bag, sleeve, drawer, or other enclosed space.", systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -420,8 +420,8 @@ struct MacVigilSettingsView: View {
     }
 
     private var appearance: some View {
-        Form {
-            Section("System appearance") {
+        SwiftUI.Form {
+            SwiftUI.Section("System appearance") {
                 LabeledContent("Appearance") {
                     Text("Follows macOS")
                         .foregroundStyle(.secondary)
@@ -432,7 +432,7 @@ struct MacVigilSettingsView: View {
                 }
             }
 
-            Section {
+            SwiftUI.Section {
                 Text("On macOS 26 and later, MacVigil uses Apple's native Liquid Glass APIs for navigation and important interactive controls. Content areas use standard system materials, matching Apple's guidance instead of applying glass to every surface. Earlier macOS releases use standard materials and controls as a compatibility fallback.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -442,8 +442,8 @@ struct MacVigilSettingsView: View {
     }
 
     private var about: some View {
-        Form {
-            Section {
+        SwiftUI.Form {
+            SwiftUI.Section {
                 HStack(spacing: 14) {
                     Image(nsImage: NSApplication.shared.applicationIconImage)
                         .resizable()
@@ -462,7 +462,7 @@ struct MacVigilSettingsView: View {
                 .padding(.vertical, 6)
             }
 
-            Section("Project") {
+            SwiftUI.Section("Project") {
                 Link("GitHub repository", destination: URL(string: "https://github.com/LotfyAymanElnaggar/MacVigil")!)
                 Link("Latest releases", destination: URL(string: "https://github.com/LotfyAymanElnaggar/MacVigil/releases")!)
                 Text("MacVigil is currently distributed with ad-hoc signing rather than Developer ID notarization.")
