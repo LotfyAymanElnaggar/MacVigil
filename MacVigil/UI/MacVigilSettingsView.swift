@@ -55,6 +55,9 @@ struct MacVigilSettingsView: View {
             durationMinutes = Double(preferredMinutes)
             updater.refreshLaunchAtLoginState()
         }
+        .onDisappear {
+            hotkeys.cancelRecording()
+        }
     }
 
     private var sidebar: some View {
@@ -92,7 +95,7 @@ struct MacVigilSettingsView: View {
                 Spacer(minLength: 4)
 
                 if hotkeys.enabled {
-                    Text("⌥⌘V")
+                    Text(hotkeys.startStopKeys)
                         .font(.caption2.monospaced().weight(.medium))
                         .foregroundStyle(.tertiary)
                 }
@@ -275,11 +278,8 @@ struct MacVigilSettingsView: View {
             }
 
             SwiftUI.Section("Shortcuts") {
-                ForEach(GlobalHotkeyManager.shortcuts) { shortcut in
-                    LabeledContent {
-                        Text(shortcut.keys)
-                            .font(.body.monospaced().weight(.medium))
-                    } label: {
+                ForEach(hotkeys.shortcuts) { shortcut in
+                    HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(shortcut.title)
                                 .font(.body)
@@ -287,8 +287,56 @@ struct MacVigilSettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+
+                        Spacer()
+
+                        if hotkeys.recordingID == shortcut.id {
+                            Text("Press shortcut…")
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                        } else {
+                            Text(shortcut.keys)
+                                .font(.body.monospaced().weight(.semibold))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+
+                        Button(hotkeys.recordingID == shortcut.id ? "Cancel" : "Change") {
+                            if hotkeys.recordingID == shortcut.id {
+                                hotkeys.cancelRecording()
+                            } else {
+                                hotkeys.beginRecording(id: shortcut.id)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            hotkeys.resetShortcut(id: shortcut.id)
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Reset this shortcut")
                     }
                     .padding(.vertical, 4)
+                }
+
+                HStack {
+                    Text("Click Change, then press the new key combination. MacVigil rejects duplicate shortcuts and reports system registration conflicts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Reset All") { hotkeys.resetAllShortcuts() }
+                        .buttonStyle(.bordered)
+                }
+            }
+
+            if let status = hotkeys.lastActionText {
+                SwiftUI.Section("Status") {
+                    Label(status, systemImage: hotkeys.recordingID == nil ? "info.circle" : "keyboard")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -298,6 +346,7 @@ struct MacVigilSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .onDisappear { hotkeys.cancelRecording() }
     }
 
     private var updates: some View {
