@@ -41,12 +41,11 @@ The design uses native system behavior throughout:
 
 The interaction rule remains simple: **the whole visible control is clickable**. You do not need to aim directly at its label text.
 
-The menu-bar panel keeps the everyday workflow compact and now tells you **why** Vigil is active:
+The menu-bar panel keeps the everyday workflow compact and tells you **why** Vigil is active:
 
 - **Timer · Compute Guard · 52:14** for a normal timed session
 - **Job Guard · Port 3000 · listening** for a protected local server
 - **Job Guard · 3 jobs protected** for multi-workload sessions
-- **CLI · Compute Guard** for future command-line-owned sessions
 
 Your configured global shortcut is shown in the panel instead of a hard-coded key combination.
 
@@ -67,6 +66,8 @@ Settings has dedicated sections for:
 - **Power & Safety** — battery, thermal, authorization, and external-power policy
 - **Appearance** — native system appearance and Liquid Glass availability
 - **About** — version and project information
+
+The Settings toolbar also includes a native **CLI** menu for installing or removing `/usr/local/bin/macvigil`.
 
 ## Choose how your Mac stays awake
 
@@ -106,6 +107,7 @@ One Job Guard session can protect several kinds of work at the same time:
 - manually entered PIDs
 - non-interactive shell commands
 - **TCP listening ports** for local servers
+- workloads added from the `macvigil` CLI
 
 MacVigil keeps one Job Guard session active while any protected item is still running and releases protection only after the **last protected item** finishes naturally.
 
@@ -121,9 +123,58 @@ You can protect one suggestion at a time or choose **Protect Suggested** to add 
 
 ### Commands and project folders
 
-Commands still run non-interactively through `/bin/zsh -lc`, but you can now choose the project folder they run from instead of being limited to your home directory. Each launched command keeps its own log.
+Commands run non-interactively through `/bin/zsh -lc`, and you can choose the project folder they run from instead of being limited to your home directory. Each launched command keeps its own log.
 
 When the final protected item finishes naturally, Job Guard releases Vigil and posts a local completion notification when notification permission is available. Detaching one or all items never terminates the underlying workload.
+
+## `macvigil` command-line client
+
+MacVigil ships a universal Apple Silicon + Intel command-line client inside the app. The CLI talks to the **already-running MacVigil app and the same runtime state** rather than creating a second set of power assertions. The local control transport uses `DistributedNotificationCenter`; it does not open a TCP or HTTP control server.
+
+After moving MacVigil to `/Applications`, open **MacVigil Settings** and use the toolbar **CLI → Install macvigil CLI**. This creates `/usr/local/bin/macvigil` as a symlink to the executable inside the installed app and asks for administrator approval only for that filesystem change. The same menu can remove the symlink. The release DMG also contains a `macvigil` helper, but installation deliberately refuses to create a persistent symlink back into a temporary mounted DMG.
+
+Common commands:
+
+```sh
+macvigil status
+macvigil status --json
+
+macvigil start --mode compute --duration 2h
+macvigil mode full-awake
+macvigil stop
+
+macvigil watch-pid 43127 44102
+macvigil watch-port 3000 5173
+macvigil protect-suggested
+
+macvigil run --cwd ~/Projects/app --env NODE_ENV=test -- npm test
+```
+
+`macvigil run` starts the command in your Terminal session, keeps stdin/stdout/stderr attached, asks the running MacVigil app to protect the new PID with Job Guard, waits for the command, and returns the command's exit status. It never creates a competing Vigil session. If attachment fails, the CLI warns instead of killing the workload.
+
+The CLI will try to launch the installed MacVigil app when a command needs the runtime and the app is not already running. Closed-Lid Eco still requires the same authorization and first-use safety acknowledgement as the GUI.
+
+### Saved workflows
+
+Reusable local workflows can combine ports, commands, project directories, environment variables, and the opt-in **Protect Suggested** action. They are stored locally in `~/Library/Application Support/MacVigil/workflows.json`.
+
+For example:
+
+```sh
+macvigil workflow save local-stack \
+  --port 3000 \
+  --port 11434 \
+  --command "npm run dev" \
+  --cwd ~/Projects/app \
+  --env NODE_ENV=development
+
+macvigil workflow run local-stack
+macvigil workflow list
+macvigil workflow show local-stack
+macvigil workflow delete local-stack
+```
+
+All workflow members join the same Job Guard collection. A finished command or disappeared listener does not release Vigil while another protected member remains.
 
 ## Statistics
 
@@ -135,7 +186,7 @@ You can view and filter:
 - protected time, session count, average session, and longest session
 - activity by day
 - protection-mode usage
-- session owner: **Timer**, **Job Guard**, or CLI-owned sessions when available
+- session owner: **Timer** or **Job Guard**
 - battery change when recorded
 - peak thermal state
 - recent session history
@@ -174,7 +225,8 @@ MacVigil is useful for AI coding agents, Ollama/LM Studio/MLX/llama.cpp, Xcode a
 1. Download the newest DMG from [Releases](https://github.com/LotfyAymanElnaggar/MacVigil/releases).
 2. Drag **MacVigil** into **Applications**.
 3. Launch it from Applications.
-4. For optional closed-lid protection, install authorization from **Settings → Power & Safety**.
+4. Optionally install the CLI from the Settings toolbar **CLI** menu.
+5. For optional closed-lid protection, install authorization from **Settings → Power & Safety**.
 
 MacVigil is currently distributed with ad-hoc signing rather than Apple Developer ID notarization. On first launch, macOS may require **Right-click → Open** or approval in **System Settings → Privacy & Security**.
 
@@ -191,19 +243,20 @@ Brightness/backlight control should not be interpreted as a guarantee that the p
 - macOS 13 or later
 - Apple Silicon or Intel Mac
 - macOS 26 or later for native system Liquid Glass effects
+- administrator approval to create/remove the optional `/usr/local/bin/macvigil` symlink
 - administrator approval only for optional closed-lid protection
 
 Closed-lid behavior is still being tested across Mac models and macOS versions. See the [compatibility guide](docs/COMPATIBILITY.md) for current results.
 
 ## Privacy
 
-MacVigil works locally. No account or cloud service is required to keep your Mac awake. Job detection, port checks, session statistics, and CSV export remain local. Update checks contact GitHub only when update checking is enabled.
+MacVigil works locally. No account or cloud service is required to keep your Mac awake. Job detection, port checks, CLI control messages, saved workflows, session statistics, and CSV export remain local. The CLI does not expose a network control endpoint. Update checks contact GitHub only when update checking is enabled.
 
 ## Project status
 
-MacVigil is currently **pre-1.0** and under active testing. The focus is reliable runtime protection, job-aware sessions, closed-lid compatibility, energy-aware behavior, safe recovery, and a polished native macOS experience.
+MacVigil is currently **pre-1.0** and under active testing. The focus is reliable runtime protection, job-aware sessions, closed-lid compatibility, energy-aware behavior, safe recovery, a native macOS experience, and hardened distribution.
 
-The standalone `macvigil` CLI is still future work; the GUI session-ownership model is being kept ready for that control surface.
+The next major track is reliability and distribution: deliberate crash-recovery testing, broader hardware compatibility, Developer ID signing, notarization, and eventually easier package-manager installation.
 
 See the [roadmap](ROADMAP.md) for upcoming work.
 
