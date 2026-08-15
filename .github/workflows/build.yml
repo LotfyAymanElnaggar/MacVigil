@@ -64,6 +64,7 @@ jobs:
             -framework IOKit
             -framework CryptoKit
             -framework UserNotifications
+            -framework ServiceManagement
           )
 
           xcrun --sdk macosx swiftc "${SRC[@]}" "${COMMON[@]}" \
