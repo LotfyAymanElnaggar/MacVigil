@@ -42,19 +42,19 @@ Keep both the Mac and display awake.
 
 Best for presentations, dashboards, demos, monitoring, and kiosk-style use.
 
+## Job Guard
+
+A timer is useful when you know how long work will take. **Job Guard** is for when you do not.
+
+MacVigil can watch a running PID or launch a non-interactive command and keep Vigil active until that job actually finishes. When the job exits, MacVigil releases the protection automatically.
+
+That means a 38-minute build does not need a guessed four-hour awake timer.
+
 ## Fine-grained control
 
-Presets are only a starting point. Before starting a Vigil session, you can independently choose whether MacVigil should:
+Presets are only a starting point. Protection options and modes can be changed while Vigil is running, including system sleep, idle sleep, display sleep, closed-lid protection, display darkening, battery reserve, and thermal safety.
 
-- prevent system sleep
-- prevent idle sleep
-- prevent display sleep
-- protect closed-lid operation
-- darken the built-in display when the lid closes
-- stop at a battery reserve
-- release protection under critical thermal pressure
-
-Sessions can run for a fixed duration, a custom duration, or indefinitely.
+Sessions can run for a fixed duration, a custom duration, indefinitely, or until a Job Guard target finishes.
 
 ## Built for local work
 
@@ -77,6 +77,8 @@ MacVigil is useful for:
 3. Launch it from Applications.
 4. If you want closed-lid protection, install the optional authorization from inside MacVigil.
 
+MacVigil includes an in-app GitHub release checker. Automatic checking is enabled by default; automatic installation is optional.
+
 MacVigil is currently distributed with ad-hoc signing rather than Apple notarization. On first launch, macOS may require **Right-click → Open** or approval from **System Settings → Privacy & Security**.
 
 ## Safety
@@ -95,11 +97,11 @@ Closed-lid behavior is still being tested across Mac models and macOS versions. 
 
 ## Privacy
 
-MacVigil works locally. No account or cloud service is required to keep your Mac awake.
+MacVigil works locally. No account or cloud service is required to keep your Mac awake. Update checks contact GitHub only when update checking is enabled.
 
 ## Project status
 
-MacVigil is currently **pre-1.0** and under active testing. The focus is reliable runtime protection, closed-lid compatibility, energy-aware behavior, safe recovery, and a polished native macOS experience.
+MacVigil is currently **pre-1.0** and under active testing. The focus is reliable runtime protection, job-aware sessions, closed-lid compatibility, energy-aware behavior, safe recovery, and a polished native macOS experience.
 
 See the [roadmap](ROADMAP.md) for what is coming next.
 
