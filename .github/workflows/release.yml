@@ -45,6 +45,16 @@ jobs:
             test "$VERSION" = "$PLIST_VERSION"
           fi
 
+          NOTES_FILE="release-notes/v${VERSION}.md"
+          if [[ -f "$NOTES_FILE" ]]; then
+            test -s "$NOTES_FILE"
+            echo "RELEASE_NOTES_FILE=$NOTES_FILE" >> "$GITHUB_ENV"
+            echo "Curated release notes confirmed: $NOTES_FILE"
+          else
+            echo "RELEASE_NOTES_FILE=" >> "$GITHUB_ENV"
+            echo "No curated notes found; GitHub-generated notes will be used."
+          fi
+
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "TAG=v$VERSION" >> "$GITHUB_ENV"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" MacVigil/Info.plist
@@ -154,12 +164,17 @@ jobs:
             "build/MacVigil-${VERSION}.dmg"
             "build/SHA256SUMS.txt"
             --title "MacVigil $TAG"
-            --generate-notes
           )
+
+          if [[ -n "${RELEASE_NOTES_FILE:-}" ]]; then
+            ARGS+=(--notes-file "$RELEASE_NOTES_FILE")
+          else
+            ARGS+=(--generate-notes)
+          fi
 
           if [[ "${GITHUB_REF_TYPE:-}" != "tag" ]]; then
             ARGS+=(--target "$GITHUB_SHA")
           fi
 
           gh release create "${ARGS[@]}"
-          gh release view "$TAG" --json url,isDraft,isPrerelease,assets
+          gh release view "$TAG" --json url,isDraft,isPrerelease,assets,body
