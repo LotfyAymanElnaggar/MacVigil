@@ -53,6 +53,7 @@ jobs:
             MacVigil/Core/Runtime/LiveReconfiguration.swift
             MacVigil/Core/Updates/UpdateManager.swift
             MacVigil/Core/Jobs/JobAwareController.swift
+            MacVigil/Core/Hotkeys/GlobalHotkeyManager.swift
             MacVigil/UI/PolishedMenuBarView.swift
             MacVigil/UI/MacVigilRootView.swift
             MacVigil/UI/PowerIntelligenceView.swift
@@ -60,6 +61,7 @@ jobs:
             MacVigil/UI/InteractionReliabilityView.swift
             MacVigil/UI/LiquidGlassMenuView.swift
             MacVigil/UI/MacVigilSettingsView.swift
+            MacVigil/UI/StatisticsView.swift
           )
 
           COMMON=(
@@ -72,6 +74,7 @@ jobs:
             -framework CryptoKit
             -framework UserNotifications
             -framework ServiceManagement
+            -framework Carbon
           )
 
           xcrun --sdk macosx swiftc "${SRC[@]}" "${COMMON[@]}" \
@@ -124,7 +127,7 @@ jobs:
           xcrun lipo -archs "$MACOS_DIR/MacVigil" | grep -q x86_64
           xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q arm64
           xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q x86_64
-          echo "Universal binaries and app icon confirmed."
+          echo "Universal binaries, hotkeys, statistics, and app icon confirmed."
 
       - name: Create DMG
         shell: bash
