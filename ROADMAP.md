@@ -22,23 +22,27 @@ Legend: ✅ shipped · 🧪 experimental · 🚧 next · 💡 later
 - ✅ independent system, idle, display, lid, battery, and thermal controls
 - ✅ closed-lid crash recovery watchdog
 - ✅ built-in GitHub release checking and verified update flow
+- ✅ background update notifications and optional automatic installation
+- ✅ Launch at Login
 - ✅ universal Apple Silicon + Intel builds
 - ✅ diagnostics for runtime, lid, display, battery, thermal, and sleep state
 - 🧪 experimental closed-lid kernel guard and built-in display darkening
 
 ## Job Guard
 
-The first job-aware workflow shipped in v0.6.0.
+Job-aware protection began in v0.6 and became user-friendly in v0.7.
 
+- ✅ choose a running app or process from a searchable native picker
+- ✅ show app icon, PID, and CPU activity when available
 - ✅ watch an existing PID
-- ✅ release Vigil automatically when the watched PID exits
+- ✅ release Vigil automatically when the watched process exits
 - ✅ run a non-interactive shell command under Vigil
 - ✅ capture command output to a log
+- ✅ remember recent commands
+- ✅ show live elapsed time and richer completion/exit details
 - ✅ release Vigil when the launched command exits
-- 🚧 choose a running process from a native process picker
 - 🚧 working-directory picker for launched commands
-- 🚧 preserve and present richer command exit details
-- 🚧 completion notification
+- 🚧 job-completion notification
 - 💡 combine multiple process conditions with AND / OR rules
 
 ## CLI and developer workflows
@@ -50,7 +54,6 @@ The first job-aware workflow shipped in v0.6.0.
 - 🚧 Docker container and Compose project triggers
 - 🚧 shell completion
 - 🚧 Homebrew Cask
-- 🚧 launch-at-login option
 - 💡 Shortcuts support
 - 💡 URL scheme and local API
 - 💡 editor / Raycast integrations
@@ -62,7 +65,7 @@ AI is a first-class use case, not a hard-coded dependency.
 - 🚧 Agent Session preset
 - 🚧 Local Model Server preset
 - 🚧 opt-in detection of common local AI runtimes
-- 🚧 show which process or command is keeping Vigil active
+- 🚧 identify likely AI/build/server workloads from running processes
 - 💡 repository indexing / embedding preset
 - 💡 agent completion integration
 
