@@ -120,9 +120,11 @@ struct LiquidGlassMenuView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("⌥⌘V")
-                    .font(.caption.monospaced().weight(.semibold))
-                    .foregroundStyle(.secondary)
+                if hotkeys.enabled {
+                    Text(hotkeys.startStopKeys)
+                        .font(.caption.monospaced().weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.horizontal, 4)
             .frame(maxWidth: .infinity, minHeight: 46)
@@ -137,9 +139,11 @@ struct LiquidGlassMenuView: View {
             HStack {
                 sectionTitle("Mode")
                 Spacer()
-                Text("⌥⌘1 / 2 / 3")
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
+                if hotkeys.enabled {
+                    Text(modeShortcutSummary)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                }
             }
 
             HStack(spacing: 9) {
@@ -259,8 +263,8 @@ struct LiquidGlassMenuView: View {
         HStack(spacing: 9) {
             destinationButton(
                 title: "Job Guard",
-                icon: jobs.isWatching ? "briefcase.fill" : "briefcase",
-                badge: jobs.isWatching ? "\(jobs.activeJobCount)" : nil,
+                icon: jobs.isWatching ? "briefcase.fill" : (jobs.protectableWorkloadCount > 0 ? "sparkles" : "briefcase"),
+                badge: jobs.isWatching ? "\(jobs.activeJobCount)" : (jobs.protectableWorkloadCount > 0 ? "\(jobs.protectableWorkloadCount)" : nil),
                 windowID: "job-guard"
             )
             destinationButton(title: "Statistics", icon: "chart.bar.xaxis", badge: nil, windowID: "statistics")
@@ -312,26 +316,42 @@ struct LiquidGlassMenuView: View {
 
     private var primarySubtitle: String {
         if manager.isActive {
-            if jobs.isWatching { return "Job Guard is protecting \(jobs.activeJobCount) running job\(jobs.activeJobCount == 1 ? "" : "s")" }
-            return "Restore normal macOS sleep behavior"
+            if jobs.isWatching { return jobs.displayStatus }
+            switch manager.sessionOwner {
+            case .commandLine:
+                return "CLI owns this session lifetime"
+            default:
+                return "Timer · \(durationSummary) remaining"
+            }
         }
         return "Start \(displayModeName) for \(durationSummary)"
     }
 
     private var statusText: String {
-        if jobs.isWatching { return "Job Guard · \(jobs.activeJobCount) job\(jobs.activeJobCount == 1 ? "" : "s")" }
+        if jobs.isWatching { return "Job Guard · \(jobs.displayStatus)" }
         if manager.isLiveReconfiguring { return "Applying changes…" }
-        if manager.isActive { return "\(displayModeName) · \(durationSummary)" }
-        return "Ready"
+        guard manager.isActive else { return "Ready" }
+        switch manager.sessionOwner {
+        case .commandLine:
+            return "CLI · \(displayModeName)"
+        default:
+            return "Timer · \(displayModeName) · \(durationSummary)"
+        }
     }
 
     private var durationSummary: String {
-        if jobs.isWatching { return "until jobs finish" }
+        if jobs.isWatching { return "until protected work finishes" }
         if manager.isActive {
             guard let seconds = manager.effectiveRemainingSeconds else { return "∞" }
             return remainingText(Int(seconds))
         }
         return manager.selectedDuration == .custom ? formatDurationWords(manager.customMinutes) : manager.selectedDuration.title
+    }
+
+    private var modeShortcutSummary: String {
+        [11, 12, 13]
+            .compactMap { hotkeys.shortcut(id: UInt32($0))?.keys }
+            .joined(separator: " / ")
     }
 
     private func sectionTitle(_ title: String) -> some View {
@@ -449,9 +469,8 @@ struct LiquidGlassMenuView: View {
     }
 }
 
-// Content surfaces deliberately use standard materials. Liquid Glass is reserved
-// for navigation and controls in the menu; Settings applies native glass to its
-// window chrome and keeps forms readable inside those panes.
+// Stable content surfaces use standard system material. Liquid Glass is kept for
+// menu navigation and high-value interactive controls instead of full-pane backgrounds.
 struct MVGlassCard<Content: View>: View {
     let content: Content
 
