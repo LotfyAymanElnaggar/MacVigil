@@ -536,9 +536,15 @@ struct MacVigilSettingsView: View {
                     .controlSize(.large)
             }
         } else {
-            Button(title, action: action)
-                .buttonStyle(prominent ? .borderedProminent : .bordered)
-                .controlSize(.large)
+            if prominent {
+                Button(title, action: action)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+            } else {
+                Button(title, action: action)
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+            }
         }
     }
 
