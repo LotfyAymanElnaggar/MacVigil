@@ -25,7 +25,7 @@ struct MacVigilApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            PolishedMenuBarView(manager: manager, updater: updater, jobs: jobs)
+            MacVigilRootView(manager: manager, updater: updater, jobs: jobs)
                 .onAppear {
                     appDelegate.manager = manager
                 }
