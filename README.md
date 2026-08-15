@@ -25,27 +25,38 @@ MacVigil keeps that work protected while letting you choose exactly what stays a
 
 **Keep the work running. Not everything else.**
 
-## Liquid Glass interface
+## Native macOS interface
 
-MacVigil uses a layered native macOS interface built around translucent materials, soft blue/violet depth fields, highlighted glass edges, rounded floating surfaces, and clear selected states.
+On **macOS 26 and later**, MacVigil uses Apple's actual SwiftUI Liquid Glass APIs for important interactive controls and lets standard macOS navigation and controls adopt the system design automatically. It no longer tries to imitate Liquid Glass with custom blue/purple gradients or heavy blur layers.
 
-The interaction rule is simple: **the whole visible control is clickable**. You do not need to aim at the label text. Sidebar tabs, mode cards, duration pills, navigation cards, settings toggle rows, Start/Stop, Update, Job Guard Add actions, and individual Detach actions use full-surface hit targets with hover and pressed feedback.
+The design follows the system hierarchy instead:
+
+- native `NavigationSplitView` + sidebar `List` for Settings
+- native grouped `Form` sections for preferences
+- system toggles, sliders, labels, buttons, and selection behavior
+- native Liquid Glass for important floating/interactive controls such as mode cards, duration choices, Start/Stop, update actions, and quick destinations on macOS 26+
+- standard system materials for content surfaces instead of turning every card into glass
+- compatibility fallback to standard macOS materials and controls on macOS 13–15
+
+The interaction rule remains simple: **the whole visible control is clickable**. You do not need to aim directly at its label text.
 
 The menu-bar panel keeps the everyday workflow compact:
 
 - one large **Start Vigil / Stop Vigil** action
-- **Compute Guard**, **Closed-Lid Eco**, and **Full Awake** mode cards
+- **Compute Guard**, **Closed-Lid Eco**, and **Full Awake** mode controls
 - **15m, 30m, 1h, 2h, 4h, and Infinity** quick durations
 - a custom duration slider from 5 minutes to 12 hours
 - a battery reserve slider from 5–30%
 - direct **Job Guard**, **Statistics**, and **Settings** destinations
-- a visible update surface when a new release is available
+- a visible update action when a new release is available
 
 Advanced protection switches stay in Settings instead of crowding the everyday panel.
 
 ## Settings
 
-Settings is a separate glass window with full-width navigation rows and dedicated sections:
+Settings uses native macOS navigation rather than a hand-built glass sidebar. The sidebar is a system `List`, so selection, row hit targets, keyboard navigation, focus, hover behavior, spacing, and appearance follow macOS conventions automatically.
+
+The detail area uses grouped system forms with dedicated sections:
 
 - **General** — launch at login, global hotkeys, mode, duration, battery reserve
 - **Vigil** — every major protection behavior independently controllable
@@ -54,10 +65,10 @@ Settings is a separate glass window with full-width navigation rows and dedicate
 - **Hotkeys** — global shortcut status and reference
 - **Updates** — background checks and installation preferences
 - **Power & Safety** — battery, thermal, authorization, and external-power policy
-- **Appearance** — glass presentation and interaction behavior
+- **Appearance** — native system appearance and Liquid Glass availability
 - **About** — version and project information
 
-Settings toggle rows are intentionally full-surface controls: clicking anywhere on the row toggles the setting, while the visible switch remains the state indicator.
+Toggle labels claim the full row width so users are not forced to target only the switch or text.
 
 ## Choose how your Mac stays awake
 
@@ -93,7 +104,7 @@ Choose one or more running apps/processes, enter PIDs manually, or launch multip
 
 Each job is tracked independently. You can add more work while Job Guard is active, open command logs, detach one job without affecting the others, or detach all. Detaching never terminates the underlying process.
 
-The Job Guard UI uses large glass action surfaces. Suggested and running processes use the whole process row as the **Add** target, while destructive **Detach** remains an explicit dedicated button so it cannot happen accidentally from a row click.
+Suggested and running processes use the whole process row as the **Add** target, while destructive **Detach** remains an explicit dedicated button so it cannot happen accidentally from a row click.
 
 ## Statistics
 
@@ -126,7 +137,7 @@ Mode hotkeys change only the protection profile underneath the current session, 
 
 MacVigil can check GitHub for releases in the background, notify you when one is available, and optionally install verified updates when Vigil is inactive.
 
-Update actions use large full-width hit targets. If Vigil is active, MacVigil presents a separate update confirmation window before stopping protection and installing the update.
+If Vigil is active, MacVigil presents a separate update confirmation window before stopping protection and installing the update.
 
 ## Built for local work
 
@@ -153,6 +164,7 @@ Brightness/backlight control should not be interpreted as a guarantee that the p
 
 - macOS 13 or later
 - Apple Silicon or Intel Mac
+- macOS 26 or later for native system Liquid Glass effects
 - administrator approval only for optional closed-lid protection
 
 Closed-lid behavior is still being tested across Mac models and macOS versions. See the [compatibility guide](docs/COMPATIBILITY.md) for current results.
