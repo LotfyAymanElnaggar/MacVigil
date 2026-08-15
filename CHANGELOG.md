@@ -2,6 +2,166 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.14.0] - 2026-08-15
+
+### `macvigil` command-line client
+
+MacVigil now ships a universal command-line client for Apple Silicon and Intel Macs.
+
+The CLI controls the **same running MacVigil app, Vigil session, and Job Guard collection** used by the menu-bar interface. It does not create a second set of power assertions and it does not expose a TCP or HTTP control server.
+
+The local control transport uses macOS `DistributedNotificationCenter` with property-list-safe JSON payloads.
+
+Available commands include:
+
+```sh
+macvigil status
+macvigil status --json
+macvigil start --mode compute --duration 2h
+macvigil stop
+macvigil mode full-awake
+macvigil watch-pid 43127 44102
+macvigil watch-port 3000 5173
+macvigil protect-suggested
+macvigil detach-all
+```
+
+If a CLI command needs the MacVigil runtime and the app is not already running, the client attempts to open the installed MacVigil app and waits briefly for the local control channel to become available.
+
+### Protect a terminal command
+
+`macvigil run` launches a command from Terminal and immediately adds the child PID to the existing Job Guard collection:
+
+```sh
+macvigil run -- npm test
+macvigil run --cwd ~/Projects/app -- npm run build
+macvigil run --cwd ~/Projects/app --env NODE_ENV=test -- npm test
+```
+
+The child keeps the current Terminal stdin, stdout, and stderr. `macvigil` waits for the child and exits with the child's termination status.
+
+Protection uses the same Job Guard lifetime rule as the GUI: if other protected processes, ports, or commands remain, the Vigil session continues. If the process is the final protected item, Job Guard releases Vigil when it finishes naturally.
+
+If the command starts successfully but Job Guard cannot attach, the CLI reports a warning instead of terminating the workload.
+
+### Saved workflows
+
+Reusable local workflows can combine:
+
+- one or more TCP ports
+- one or more commands
+- a working directory
+- environment variables
+- the opt-in Protect Suggested action
+
+Example:
+
+```sh
+macvigil workflow save local-stack \
+  --port 3000 \
+  --port 11434 \
+  --command "npm run dev" \
+  --cwd ~/Projects/app \
+  --env NODE_ENV=development
+
+macvigil workflow run local-stack
+```
+
+Workflow management commands:
+
+```sh
+macvigil workflow list
+macvigil workflow show local-stack
+macvigil workflow delete local-stack
+```
+
+Saved workflows are stored locally in:
+
+```text
+~/Library/Application Support/MacVigil/workflows.json
+```
+
+Workflow members join the same Job Guard collection. MacVigil does not create a separate protection session for each member.
+
+### CLI installation from Settings
+
+The Settings toolbar now includes a native **CLI** menu.
+
+After MacVigil is installed in `/Applications`, choose **CLI → Install macvigil CLI** to create:
+
+```text
+/usr/local/bin/macvigil
+```
+
+The installed command is a symlink to the universal CLI bundled inside `MacVigil.app`. macOS administrator approval is requested only for creating or removing that symlink.
+
+The installer refuses to replace an unrelated non-symlink command. Removal also refuses to delete a symlink that does not point to a MacVigil app bundle.
+
+The release DMG contains a root-level `macvigil` helper as well, but `macvigil install` deliberately refuses to create a persistent symlink back into a temporary mounted DMG. Move MacVigil to `/Applications` first.
+
+### Same Job Guard ownership from GUI and CLI
+
+`watch-pid`, `watch-port`, `protect-suggested`, `run`, saved workflows, and GUI-added workloads all use the same Job Guard collection.
+
+This means:
+
+- adding work from Terminal while GUI Job Guard is active extends the same session
+- adding work in the GUI while CLI-started work is protected extends the same session
+- changing Compute Guard / Closed-Lid Eco / Full Awake changes only the protection profile underneath Job Guard
+- finishing one item does not release Vigil while another protected item remains
+- manual Detach does not kill workloads
+- manual Stop Vigil stops protection without terminating user processes
+
+### Start, stop, mode, and status automation
+
+The CLI can control ordinary timed Vigil sessions as well:
+
+```sh
+macvigil start --mode compute --duration 30m
+macvigil start --mode full-awake --duration infinity
+macvigil mode compute
+macvigil status
+macvigil stop
+```
+
+Duration values support common forms such as `30m`, `2h`, `150m`, and `infinity`.
+
+`macvigil status --json` provides a machine-readable local response for scripts.
+
+A normal CLI `start` intentionally uses the same Timer-owned session semantics as starting Vigil from the menu. Job-aware CLI commands use Job Guard ownership.
+
+### Closed-Lid Eco safety remains unchanged
+
+The CLI does not bypass closed-lid requirements.
+
+Closed-Lid Eco still requires the same authorization as the GUI. Before the first CLI-started closed-lid session, the first-use heat and ventilation acknowledgement must already have been accepted in the MacVigil interface.
+
+Mandatory macOS battery, thermal, shutdown, Lock Screen, and other safety behavior remains in control.
+
+### Universal release packaging
+
+CI now builds three universal executables for every release:
+
+- `MacVigil`
+- `MacVigilWatchdog`
+- `macvigil`
+
+All contain both arm64 and x86_64 slices. The CLI is bundled inside the app and copied to the root of the DMG for convenience.
+
+### Documentation and roadmap
+
+The README now documents CLI installation, command examples, local control behavior, saved workflows, working directories, environment variables, and the single-runtime ownership model.
+
+The roadmap has also been refreshed so already-shipped Job Guard and CLI work no longer appears as future work. The next major development track is reliability and distribution hardening.
+
+### Safety and distribution status
+
+MacVigil remains ad-hoc signed rather than Developer ID signed and notarized.
+
+Closed-lid workloads can generate significant heat. Keep a MacBook on a hard, ventilated surface and never run sustained closed-lid workloads in a bag, sleeve, drawer, or other enclosed space.
+
+Brightness/backlight darkening is not a guarantee that the physical display panel is electrically powered off.
+
 ## [0.13.0] - 2026-08-15
 
 ### Customizable global hotkeys
