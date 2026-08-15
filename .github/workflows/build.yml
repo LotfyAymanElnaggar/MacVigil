@@ -36,8 +36,11 @@ jobs:
 
           APP="build/MacVigil.app"
           MACOS_DIR="$APP/Contents/MacOS"
+          HELPERS_DIR="$APP/Contents/Library/Helpers"
           RESOURCES_DIR="$APP/Contents/Resources"
-          mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" build/arm64 build/x86_64
+          mkdir -p "$MACOS_DIR" "$HELPERS_DIR" "$RESOURCES_DIR"
+          mkdir -p build/arm64/app build/arm64/watchdog build/arm64/cli
+          mkdir -p build/x86_64/app build/x86_64/watchdog build/x86_64/cli
 
           SRC=(
             MacVigil/App/MacVigilApp.swift
@@ -84,28 +87,28 @@ jobs:
           for ARCH in arm64 x86_64; do
             xcrun --sdk macosx swiftc "${SRC[@]}" "${COMMON[@]}" \
               -target "${ARCH}-apple-macos13.0" \
-              -o "build/${ARCH}/MacVigil"
+              -o "build/${ARCH}/app/MacVigil"
 
             xcrun --sdk macosx swiftc MacVigilWatchdog/Watchdog.swift \
               -parse-as-library -O \
               -framework CoreGraphics -framework IOKit \
               -target "${ARCH}-apple-macos13.0" \
-              -o "build/${ARCH}/MacVigilWatchdog"
+              -o "build/${ARCH}/watchdog/MacVigilWatchdog"
 
             xcrun --sdk macosx swiftc \
               MacVigil/Core/CLI/CLIProtocol.swift \
               MacVigilCLI/main.swift \
               -parse-as-library -O -framework Foundation \
               -target "${ARCH}-apple-macos13.0" \
-              -o "build/${ARCH}/macvigil"
+              -o "build/${ARCH}/cli/macvigil"
           done
 
-          xcrun lipo -create build/arm64/MacVigil build/x86_64/MacVigil \
+          xcrun lipo -create build/arm64/app/MacVigil build/x86_64/app/MacVigil \
             -output "$MACOS_DIR/MacVigil"
-          xcrun lipo -create build/arm64/MacVigilWatchdog build/x86_64/MacVigilWatchdog \
+          xcrun lipo -create build/arm64/watchdog/MacVigilWatchdog build/x86_64/watchdog/MacVigilWatchdog \
             -output "$MACOS_DIR/MacVigilWatchdog"
-          xcrun lipo -create build/arm64/macvigil build/x86_64/macvigil \
-            -output "$MACOS_DIR/macvigil"
+          xcrun lipo -create build/arm64/cli/macvigil build/x86_64/cli/macvigil \
+            -output "$HELPERS_DIR/macvigil"
 
           cp MacVigil/Info.plist "$APP/Contents/Info.plist"
 
@@ -121,17 +124,20 @@ jobs:
           /usr/bin/iconutil -c icns "$ICONSET" -o "$RESOURCES_DIR/MacVigil.icns"
           test -s "$RESOURCES_DIR/MacVigil.icns"
 
-          chmod +x "$MACOS_DIR/MacVigil" "$MACOS_DIR/MacVigilWatchdog" "$MACOS_DIR/macvigil"
+          chmod +x "$MACOS_DIR/MacVigil" "$MACOS_DIR/MacVigilWatchdog" "$HELPERS_DIR/macvigil"
           codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict "$APP"
 
-          for BIN in MacVigil MacVigilWatchdog macvigil; do
+          for BIN in MacVigil MacVigilWatchdog; do
             file "$MACOS_DIR/$BIN"
             xcrun lipo -archs "$MACOS_DIR/$BIN" | grep -q arm64
             xcrun lipo -archs "$MACOS_DIR/$BIN" | grep -q x86_64
           done
-          "$MACOS_DIR/macvigil" help | grep -q "control MacVigil from Terminal"
-          echo "Universal app, watchdog, macvigil CLI, Settings integration, native Liquid Glass availability, hotkeys, statistics, and app icon confirmed."
+          file "$HELPERS_DIR/macvigil"
+          xcrun lipo -archs "$HELPERS_DIR/macvigil" | grep -q arm64
+          xcrun lipo -archs "$HELPERS_DIR/macvigil" | grep -q x86_64
+          "$HELPERS_DIR/macvigil" help | grep -q "control MacVigil from Terminal"
+          echo "Universal app, watchdog, separated macvigil CLI helper, Settings integration, native Liquid Glass availability, hotkeys, statistics, and app icon confirmed."
 
       - name: Launch smoke test
         shell: bash
@@ -164,7 +170,7 @@ jobs:
           STAGE="build/dmg"
           mkdir -p "$STAGE"
           cp -R build/MacVigil.app "$STAGE/MacVigil.app"
-          cp build/MacVigil.app/Contents/MacOS/macvigil "$STAGE/macvigil"
+          cp build/MacVigil.app/Contents/Library/Helpers/macvigil "$STAGE/macvigil"
           chmod +x "$STAGE/macvigil"
           ln -s /Applications "$STAGE/Applications"
 
