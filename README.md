@@ -46,11 +46,13 @@ Best for presentations, dashboards, demos, monitoring, and kiosk-style use.
 
 A timer is useful when you know how long work will take. **Job Guard** is for when you do not.
 
-Choose a running app or process from the built-in picker, or run a command directly with Vigil. MacVigil stays active until that work exits and then releases protection automatically.
+Choose one or more running apps/processes from the built-in picker, enter PIDs manually, or launch multiple commands directly with Vigil. MacVigil keeps one Job Guard session active while any selected job is still running and releases protection only after the **last protected job** finishes.
+
+Each job is tracked independently. You can add more work while Job Guard is already active, open individual command logs, or detach one job without affecting the others. Detaching never terminates the underlying process.
 
 Job Guard can also suggest likely long-running local workloads such as AI runtimes, builds, containers, servers, and transfers. Suggestions are local and opt-in.
 
-That means a 38-minute build does not need a guessed four-hour awake timer.
+That means several overlapping builds, agents, and local services do not need one guessed awake timer.
 
 ## Power Intelligence
 
@@ -62,7 +64,7 @@ For sustained closed-lid workloads, you can optionally require external power so
 
 Presets are only a starting point. Protection options and modes can be changed while Vigil is running, including system sleep, idle sleep, display sleep, closed-lid protection, display darkening, battery reserve, and thermal safety.
 
-Sessions can run for a fixed duration, a custom duration, indefinitely, or until a Job Guard target finishes.
+Sessions can run for a fixed duration, a custom duration, indefinitely, or under Job Guard until every selected protected job has finished.
 
 ## Built for local work
 
