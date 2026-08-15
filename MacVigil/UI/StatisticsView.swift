@@ -254,19 +254,25 @@ struct StatisticsDashboardView: View {
     private var dayBuckets: [DayBucket] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        return (0..<7).reversed().compactMap { offset in
-            guard let day = calendar.date(byAdding: .day, value: -offset, to: today),
-                  let next = calendar.date(byAdding: .day, value: 1, to: day) else { return nil }
+
+        return (0..<7).reversed().map { offset in
+            let day = calendar.date(byAdding: .day, value: -offset, to: today) ?? today
+            let next = calendar.date(byAdding: .day, value: 1, to: day) ?? day.addingTimeInterval(24 * 60 * 60)
             let seconds = power.recentSessions
                 .filter { $0.startedAt >= day && $0.startedAt < next }
                 .reduce(0) { $0 + $1.durationSeconds }
-            let active = manager.isActive,
-                         let started = power.activeSessionStartedAt,
-                         started >= day,
-                         started < next
-                ? power.activeSessionElapsedSeconds
-                : 0
-            return DayBucket(date: day, seconds: seconds + active)
+
+            let activeSeconds: Int
+            if manager.isActive,
+               let started = power.activeSessionStartedAt,
+               started >= day,
+               started < next {
+                activeSeconds = power.activeSessionElapsedSeconds
+            } else {
+                activeSeconds = 0
+            }
+
+            return DayBucket(date: day, seconds: seconds + activeSeconds)
         }
     }
 
