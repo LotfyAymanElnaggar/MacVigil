@@ -30,9 +30,9 @@ struct MacVigilRootView: View {
 
     private var jobGuardBar: some View {
         HStack(spacing: 9) {
-            Image(systemName: jobs.isWatching ? "briefcase.fill" : "briefcase")
+            Image(systemName: jobs.isWatching ? "briefcase.fill" : (jobs.detectedWorkloadCount > 0 ? "sparkles" : "briefcase"))
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(jobs.isWatching ? Color.accentColor : Color.secondary)
+                .foregroundStyle(jobs.isWatching || jobs.detectedWorkloadCount > 0 ? Color.accentColor : Color.secondary)
                 .frame(width: 22)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -43,10 +43,14 @@ struct MacVigilRootView: View {
                         Text(jobs.elapsedText)
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(.secondary)
+                    } else if jobs.detectedWorkloadCount > 0 {
+                        Text("\(jobs.detectedWorkloadCount) suggested")
+                            .font(.caption2)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
 
-                Text(jobs.isWatching ? jobs.displayStatus : (jobs.lastResult ?? "Protect a running process or command until it finishes."))
+                Text(jobGuardSubtitle)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -91,7 +95,7 @@ struct MacVigilRootView: View {
             .fixedSize()
             .help("MacVigil options")
 
-            Button(jobs.isWatching ? "Manage" : "Choose Job") {
+            Button(jobs.isWatching ? "Manage" : (jobs.detectedWorkloadCount > 0 ? "Review" : "Choose Job")) {
                 openJobGuard()
             }
             .buttonStyle(.bordered)
@@ -100,6 +104,13 @@ struct MacVigilRootView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { openJobGuard() }
+    }
+
+    private var jobGuardSubtitle: String {
+        if jobs.isWatching { return jobs.displayStatus }
+        if let lastResult = jobs.lastResult { return lastResult }
+        if jobs.detectedWorkloadCount > 0 { return jobs.detectionSummary }
+        return "Protect a running process or command until it finishes."
     }
 
     private var launchAtLoginBinding: Binding<Bool> {
@@ -138,6 +149,7 @@ struct JobGuardWindowView: View {
                 if jobs.isWatching {
                     activeJobCard
                 } else {
+                    detectedWorkloadsCard
                     processPickerCard
                     runCommandCard
                 }
@@ -163,7 +175,7 @@ struct JobGuardWindowView: View {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.secondary)
-                    Text("Job Guard keeps Vigil active until the selected process or command finishes. Your normal duration preference is restored afterward, and mode/protection options remain live while the job runs.")
+                    Text("Suggestions are detected locally from running processes and are never protected automatically. Job Guard keeps Vigil active only after you choose a process or command.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -171,13 +183,11 @@ struct JobGuardWindowView: View {
             }
             .padding(20)
         }
-        .frame(width: 560)
-        .frame(minHeight: 620)
+        .frame(width: 580)
+        .frame(minHeight: 680)
         .onAppear {
             NSApplication.shared.activate(ignoringOtherApps: true)
-            if jobs.processes.isEmpty {
-                Task { await jobs.refreshProcesses() }
-            }
+            Task { await jobs.refreshProcesses() }
         }
     }
 
@@ -261,10 +271,104 @@ struct JobGuardWindowView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
+    @ViewBuilder
+    private var detectedWorkloadsCard: some View {
+        let suggestions = Array(jobs.suggestedProcesses.prefix(6))
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Suggested workloads", systemImage: "sparkles")
+                    .font(.headline)
+                Spacer()
+                Text(jobs.detectionSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if suggestions.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                    Text("Nothing obvious to protect right now. You can still choose any process below.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            } else {
+                Text("MacVigil recognized these as likely long-running local-development workloads. Review and choose one to protect.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                VStack(spacing: 3) {
+                    ForEach(suggestions) { process in
+                        suggestedProcessRow(process)
+                    }
+                }
+
+                if jobs.suggestedProcesses.count > suggestions.count {
+                    Text("+ \(jobs.suggestedProcesses.count - suggestions.count) more detected below")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(14)
+        .background(Color.accentColor.opacity(suggestions.isEmpty ? 0.035 : 0.07))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.accentColor.opacity(suggestions.isEmpty ? 0.14 : 0.26), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func suggestedProcessRow(_ process: JobAwareController.ProcessCandidate) -> some View {
+        Button {
+            Task { await jobs.watchProcess(process) }
+        } label: {
+            HStack(spacing: 10) {
+                processIcon(process)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(process.name)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        if let kind = process.workloadKind {
+                            Label(kind.title, systemImage: kind.systemImage)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    HStack(spacing: 6) {
+                        Text("PID \(process.pid)")
+                            .monospacedDigit()
+                        if !process.cpuText.isEmpty {
+                            Text("•")
+                            Text("CPU \(process.cpuText)")
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Text("Protect")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ProcessRowButtonStyle())
+        .help("Keep Vigil active until \(process.name) exits")
+    }
+
     private var processPickerCard: some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack {
-                Label("Choose a running process", systemImage: "list.bullet.rectangle")
+                Label("All running processes", systemImage: "list.bullet.rectangle")
                     .font(.headline)
                 Spacer()
                 Button {
@@ -277,14 +381,14 @@ struct JobGuardWindowView: View {
                 .disabled(jobs.isRefreshingProcesses)
             }
 
-            Text("Pick an app or process. MacVigil will release protection automatically when it exits.")
+            Text("Pick any app or process. MacVigil releases protection automatically when it exits.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 7) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search by app, process, or PID", text: $jobs.processSearchText)
+                TextField("Search by app, workload type, process, or PID", text: $jobs.processSearchText)
                     .textFieldStyle(.plain)
                     .focused($focusedField, equals: .search)
                 if !jobs.processSearchText.isEmpty {
@@ -360,23 +464,19 @@ struct JobGuardWindowView: View {
             Task { await jobs.watchProcess(process) }
         } label: {
             HStack(spacing: 10) {
-                Group {
-                    if let icon = process.icon {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .scaledToFit()
-                    } else {
-                        Image(systemName: "gearshape.2")
-                            .font(.system(size: 15))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(width: 24, height: 24)
+                processIcon(process)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(process.name)
-                        .font(.subheadline.weight(.medium))
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(process.name)
+                            .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                        if let kind = process.workloadKind {
+                            Text(kind.title)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
                     HStack(spacing: 6) {
                         Text("PID \(process.pid)")
                             .monospacedDigit()
@@ -391,7 +491,7 @@ struct JobGuardWindowView: View {
 
                 Spacer()
 
-                Image(systemName: "shield.lefthalf.filled")
+                Image(systemName: process.workloadKind == nil ? "shield.lefthalf.filled" : "sparkles")
                     .foregroundStyle(Color.accentColor)
             }
             .padding(.horizontal, 8)
@@ -400,6 +500,25 @@ struct JobGuardWindowView: View {
         }
         .buttonStyle(ProcessRowButtonStyle())
         .help("Keep Vigil active until \(process.name) exits")
+    }
+
+    private func processIcon(_ process: JobAwareController.ProcessCandidate) -> some View {
+        Group {
+            if let icon = process.icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .scaledToFit()
+            } else if let kind = process.workloadKind {
+                Image(systemName: kind.systemImage)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.accentColor)
+            } else {
+                Image(systemName: "gearshape.2")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 24, height: 24)
     }
 
     private var runCommandCard: some View {
