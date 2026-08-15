@@ -25,6 +25,34 @@ MacVigil keeps that work protected while giving you control over what stays awak
 
 **Keep the work running. Not everything else.**
 
+## Liquid Glass control panel
+
+MacVigil uses a compact native macOS menu-bar panel built around translucent materials, layered glass cards, large hit targets, and clear selected states.
+
+The main panel keeps everyday controls together:
+
+- one-click **Vigil** on/off control
+- selectable **Compute Guard**, **Closed-Lid Eco**, and **Full Awake** mode cards
+- quick duration choices for **15m, 30m, 1h, 2h, 4h, and Infinity**
+- a slider for custom durations from minutes to hours
+- a battery-reserve slider
+- Job Guard status and protected-job count
+- large **Stop Vigil** and **Settings** actions
+
+Mode changes can be applied while Vigil is active without resetting the existing countdown or discarding a Job Guard-owned session.
+
+## Separate Settings window
+
+Advanced controls live in a dedicated Settings window instead of crowding the menu-bar panel. Settings are organized into:
+
+- **General** — launch at login, update defaults, mode, duration, battery reserve
+- **Vigil** — every major protection switch independently controllable
+- **Job Guard** — multi-job session behavior and management
+- **Updates** — background checks and automatic installation options
+- **Power & Safety** — battery, thermal, closed-lid authorization, and external-power policy
+- **Appearance** — native glass presentation and system appearance behavior
+- **About** — version and project links
+
 ## Choose how your Mac stays awake
 
 ### Compute Guard
@@ -35,12 +63,18 @@ Best for AI agents, local models, builds, tests, servers, downloads, and remote 
 ### Closed-Lid Eco
 Keep work running with the MacBook lid closed while darkening the built-in display and applying battery and thermal safeguards.
 
-MacVigil can keep the display logically awake while the lid is dark, helping avoid Lock Screen behavior that can be triggered by display sleep. It does **not** change or weaken your macOS password or Lock Screen settings.
+MacVigil can keep display sleep logically blocked while the lid is dark, helping avoid workflows being interrupted by display-sleep behavior. It does **not** change or weaken your macOS password or Lock Screen settings.
 
 ### Full Awake
 Keep both the Mac and display awake.
 
 Best for presentations, dashboards, demos, monitoring, and kiosk-style use.
+
+## Duration controls
+
+Choose a quick duration or tune it with the slider. Timed sessions can be changed intentionally while active; simply switching protection mode preserves the existing deadline.
+
+Job Guard is different: while Job Guard owns the session lifetime, normal duration controls do not replace that ownership.
 
 ## Job Guard
 
@@ -52,13 +86,11 @@ Each job is tracked independently. You can add more work while Job Guard is alre
 
 Job Guard can also suggest likely long-running local workloads such as AI runtimes, builds, containers, servers, and transfers. Suggestions are local and opt-in.
 
-That means several overlapping builds, agents, and local services do not need one guessed awake timer.
-
 ## Power Intelligence
 
 MacVigil shows current battery and thermal state, estimates time to your configured battery reserve when macOS provides a usable discharge estimate, and keeps lightweight statistics for recent Vigil sessions.
 
-For sustained closed-lid workloads, you can optionally require external power so MacVigil releases closed-lid protection if the Mac switches to battery.
+The battery reserve can be changed with a slider from the main panel or Settings. For sustained closed-lid workloads, you can optionally require external power so MacVigil releases closed-lid protection if the Mac switches to battery.
 
 ## Fine-grained control
 
@@ -85,7 +117,7 @@ MacVigil is useful for:
 1. Download the newest DMG from [Releases](https://github.com/LotfyAymanElnaggar/MacVigil/releases).
 2. Drag **MacVigil** into **Applications**.
 3. Launch it from Applications.
-4. If you want closed-lid protection, install the optional authorization from inside MacVigil.
+4. If you want closed-lid protection, install the optional authorization from **Settings → Power & Safety**.
 
 MacVigil can check GitHub for new releases in the background, notify you when one is ready, and optionally install verified updates automatically when Vigil is idle. Launch at Login is optional.
 
@@ -96,6 +128,8 @@ MacVigil is currently distributed with ad-hoc signing rather than Apple notariza
 Closed-lid workloads can generate significant heat. Do not run a heavily loaded MacBook inside a bag, sleeve, drawer, or other poorly ventilated space.
 
 MacVigil keeps battery and thermal safeguards available and does not attempt to override mandatory macOS safety shutdown behavior.
+
+Brightness/backlight control should not be interpreted as a guarantee that the physical panel is electrically powered off.
 
 ## Requirements
 
