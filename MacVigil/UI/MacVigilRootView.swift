@@ -132,7 +132,8 @@ struct JobGuardWindowView: View {
             }
             .padding(20)
         }
-        .frame(width: 520, minHeight: 520)
+        .frame(width: 520)
+        .frame(minHeight: 520)
         .onAppear {
             NSApplication.shared.activate(ignoringOtherApps: true)
         }
