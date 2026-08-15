@@ -2,6 +2,27 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.6.2] - 2026-08-15
+
+### Fixed
+
+- automatic update checks now start from the MacVigil application lifecycle instead of waiting for the menu-bar panel to be opened
+- update notifications no longer depend on clicking or interacting with the MacVigil UI first
+- automatic installation can proceed in the background once Vigil becomes inactive
+
+### Added
+
+- an immediate update check when MacVigil launches
+- hourly background release checks while MacVigil is running
+- a fresh release check after the Mac wakes from sleep
+- notification authorization is prepared at app startup when automatic update checking is enabled
+- **Launch MacVigil at Login** using the macOS ServiceManagement API, available from the bottom-bar options menu
+
+### Changed
+
+- GitHub update requests bypass stale local cache data so the latest release is discovered promptly
+- the updater keeps its background monitoring alive independently of the transient MenuBarExtra content view
+
 ## [0.6.1] - 2026-08-15
 
 ### Fixed
