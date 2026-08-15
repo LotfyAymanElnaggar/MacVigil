@@ -96,7 +96,7 @@ struct MacVigilRootView: View {
         if jobs.isWatching { return jobs.displayStatus }
         if let lastResult = jobs.lastResult { return lastResult }
         if jobs.detectedWorkloadCount > 0 { return jobs.detectionSummary }
-        return "Protect one or more processes and commands until all finish."
+        return "Protect processes, commands, or listening ports until all finish."
     }
 
     private var launchAtLoginBinding: Binding<Bool> {
@@ -124,6 +124,7 @@ struct JobGuardWindowView: View {
     private enum Field: Hashable {
         case search
         case pid
+        case port
         case command
     }
 
@@ -137,6 +138,7 @@ struct JobGuardWindowView: View {
                 }
 
                 detectedWorkloadsCard
+                portWatcherCard
                 processPickerCard
                 runCommandCard
 
@@ -161,7 +163,7 @@ struct JobGuardWindowView: View {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.secondary)
-                    Text("Job Guard owns the session lifetime. You can add more jobs while it is active and change the protection mode at any time. Vigil releases only when the final protected job finishes naturally. Detaching never kills a job.")
+                    Text("Job Guard owns the session lifetime. Add processes, commands, and TCP ports to the same session and change protection modes at any time. Vigil releases only when the final protected item finishes naturally. Detaching never kills a process or command.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -169,8 +171,8 @@ struct JobGuardWindowView: View {
             }
             .padding(20)
         }
-        .frame(width: 620)
-        .frame(minHeight: 720)
+        .frame(width: 660)
+        .frame(minHeight: 760)
         .onAppear {
             NSApplication.shared.activate(ignoringOtherApps: true)
             Task { await jobs.refreshProcesses() }
@@ -201,9 +203,9 @@ struct JobGuardWindowView: View {
                         .font(.caption2.weight(.bold))
                         .tracking(0.7)
                         .foregroundStyle(.secondary)
-                    Text(jobs.activeJobCount == 1 ? "1 protected job" : "\(jobs.activeJobCount) protected jobs")
+                    Text(jobs.activeJobCount == 1 ? "1 protected item" : "\(jobs.activeJobCount) protected items")
                         .font(.headline)
-                    Text("Vigil releases after the last running job finishes.")
+                    Text("Vigil releases after the last running item finishes.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -224,14 +226,34 @@ struct JobGuardWindowView: View {
 
             Divider()
 
-            VStack(spacing: 5) {
-                ForEach(jobs.protectedJobs) { job in
-                    protectedJobRow(job)
+            let running = jobs.protectedJobs.filter { $0.state == .running }
+            let completed = jobs.protectedJobs.filter { $0.state != .running }
+
+            if !running.isEmpty {
+                Text("RUNNING")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                VStack(spacing: 5) {
+                    ForEach(running) { job in
+                        protectedJobRow(job)
+                    }
+                }
+            }
+
+            if !completed.isEmpty {
+                Text("RECENT")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+                VStack(spacing: 5) {
+                    ForEach(completed.suffix(6)) { job in
+                        protectedJobRow(job)
+                    }
                 }
             }
 
             HStack {
-                Text("Add more processes or commands below while this session is active.")
+                Text("Add more processes, commands, or ports below while this session is active.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -261,7 +283,15 @@ struct JobGuardWindowView: View {
                     .lineLimit(2)
                     .truncationMode(.middle)
                 HStack(spacing: 6) {
-                    Text("PID \(job.pid)").monospacedDigit()
+                    if let port = job.port {
+                        Text("TCP \(port)").monospacedDigit()
+                        if job.pid > 0 {
+                            Text("•")
+                            Text("PID \(job.pid)").monospacedDigit()
+                        }
+                    } else {
+                        Text("PID \(job.pid)").monospacedDigit()
+                    }
                     Text("•")
                     Text(jobs.elapsedText(for: job)).monospacedDigit()
                     if let exit = job.exitCode {
@@ -286,9 +316,10 @@ struct JobGuardWindowView: View {
             }
 
             if job.state == .running {
-                Button { jobs.detachJob(job.id) } label: { Image(systemName: "link.badge.minus") }
-                    .buttonStyle(.borderless)
-                    .help("Detach this job without terminating it")
+                Button("Detach") { jobs.detachJob(job.id) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Detach this item without terminating its workload")
             }
         }
         .padding(.horizontal, 9)
@@ -303,27 +334,35 @@ struct JobGuardWindowView: View {
 
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label(jobs.isWatching ? "Add a suggested workload" : "Suggested workloads", systemImage: "sparkles")
+                Label(jobs.isWatching ? "Add suggested workloads" : "Suggested workloads", systemImage: "sparkles")
                     .font(.headline)
                 Spacer()
-                Text(jobs.detectionSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if jobs.protectableWorkloadCount > 0 {
+                    Button("Protect Suggested (\(min(12, jobs.protectableWorkloadCount)))") {
+                        Task { await jobs.protectSuggestedWorkloads() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
             }
+
+            Text(jobs.detectionSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             if suggestions.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle")
                         .foregroundStyle(.secondary)
-                    Text("Nothing obvious to protect right now. You can still choose any process below.")
+                    Text("Nothing obvious to protect right now. You can still choose any process or port below.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 4)
             } else {
                 Text(jobs.isWatching
-                     ? "Choose another workload to add it to the same Job Guard session."
-                     : "Review these likely long-running local workloads and choose any that should keep Vigil active.")
+                     ? "Add any of these workloads to the current Job Guard session, or protect all detected workloads at once."
+                     : "MacVigil only suggests likely local workloads. You remain in control of what is protected.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -347,6 +386,47 @@ struct JobGuardWindowView: View {
         processButton(process, prominent: true)
     }
 
+    private var portWatcherCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(jobs.isWatching ? "Add a listening port" : "Protect a local server", systemImage: "network")
+                    .font(.headline)
+                Spacer()
+                if jobs.activePortCount > 0 {
+                    Text("\(jobs.activePortCount) watched")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Text("Keep Vigil active while a TCP service is listening. Useful for dev servers such as ports 3000, 5173, 8000, or 8080. The port watcher releases when the listener disappears.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                TextField("Port, for example 3000", text: $jobs.portText)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focusedField, equals: .port)
+                    .onSubmit {
+                        guard !jobs.portText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                        Task { await jobs.watchPort() }
+                    }
+                Button(jobs.isWatching ? "Add Port" : "Watch Port") {
+                    Task { await jobs.watchPort() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(jobs.portText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(14)
+        .background(Color.primary.opacity(0.025))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
     private var processPickerCard: some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack {
@@ -363,7 +443,7 @@ struct JobGuardWindowView: View {
                 .disabled(jobs.isRefreshingProcesses)
             }
 
-            Text("Select as many processes as needed. Finishing one does not release Vigil while another protected job is still running.")
+            Text("Select as many processes as needed. Finishing one does not release Vigil while another protected item is still running.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -522,9 +602,25 @@ struct JobGuardWindowView: View {
                 }
             }
 
-            Text("Run a non-interactive shell command from your home directory. Each command gets its own log. Add multiple commands and Vigil remains active until the last protected job finishes.")
+            Text("Run a non-interactive shell command in the project folder you choose. Each command gets its own log. Add multiple commands and Vigil remains active until the last protected item finishes.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                Label(URL(fileURLWithPath: jobs.workingDirectoryPath).lastPathComponent.isEmpty ? jobs.workingDirectoryPath : URL(fileURLWithPath: jobs.workingDirectoryPath).lastPathComponent,
+                      systemImage: "folder")
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(jobs.workingDirectoryPath)
+                Spacer()
+                Button("Choose Folder…") { jobs.chooseWorkingDirectory() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Button("Home") { jobs.resetWorkingDirectory() }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+            }
 
             TextField("npm test  ·  python train.py  ·  make build", text: $jobs.commandText)
                 .textFieldStyle(.roundedBorder)
