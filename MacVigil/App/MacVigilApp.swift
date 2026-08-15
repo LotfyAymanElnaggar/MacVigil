@@ -14,16 +14,18 @@ struct MacVigilApp: App {
     @NSApplicationDelegateAdaptor(MacVigilAppDelegate.self) private var appDelegate
     @StateObject private var manager: VigilManager
     @StateObject private var updater: UpdateManager
+    @StateObject private var jobs: JobAwareController
 
     init() {
         let manager = VigilManager()
         _manager = StateObject(wrappedValue: manager)
         _updater = StateObject(wrappedValue: UpdateManager())
+        _jobs = StateObject(wrappedValue: JobAwareController(manager: manager))
     }
 
     var body: some Scene {
         MenuBarExtra {
-            PolishedMenuBarView(manager: manager, updater: updater)
+            PolishedMenuBarView(manager: manager, updater: updater, jobs: jobs)
                 .onAppear {
                     appDelegate.manager = manager
                 }
