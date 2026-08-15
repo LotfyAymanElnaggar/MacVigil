@@ -20,6 +20,7 @@ private enum LiveSessionContinuity {
     }
 
     static var entries: [ObjectIdentifier: Entry] = [:]
+    static var reconfiguringManagers: Set<ObjectIdentifier> = []
 
     static func deadline(for manager: VigilManager) -> Date? {
         entries[ObjectIdentifier(manager)]?.deadline
@@ -39,6 +40,18 @@ private enum LiveSessionContinuity {
     static func isCurrent(_ generation: UUID, for manager: VigilManager) -> Bool {
         entries[ObjectIdentifier(manager)]?.generation == generation
     }
+
+    static func beginReconfiguration(for manager: VigilManager) {
+        reconfiguringManagers.insert(ObjectIdentifier(manager))
+    }
+
+    static func endReconfiguration(for manager: VigilManager) {
+        reconfiguringManagers.remove(ObjectIdentifier(manager))
+    }
+
+    static func isReconfiguring(_ manager: VigilManager) -> Bool {
+        reconfiguringManagers.contains(ObjectIdentifier(manager))
+    }
 }
 
 @MainActor
@@ -57,6 +70,14 @@ extension VigilManager {
         return remainingSeconds
     }
 
+    /// True only while MacVigil is deliberately rebuilding an active session
+    /// to apply a live mode, option, or duration change. Controllers that own
+    /// the lifetime of the session (for example Job Guard) must treat this as
+    /// continuity, not as the user stopping Vigil.
+    var isLiveReconfiguring: Bool {
+        LiveSessionContinuity.isReconfiguring(self)
+    }
+
     func startFreshSession() async {
         LiveSessionContinuity.clear(for: self)
         await startSelectedSession()
@@ -68,7 +89,7 @@ extension VigilManager {
     }
 
     /// Changes a single protection option while preserving the exact active
-    /// session deadline.
+    /// session deadline and any higher-level owner such as Job Guard.
     func changeOptionLive(_ option: VigilOption, to enabled: Bool) async -> Bool {
         if !isActive {
             setOption(option, to: enabled)
@@ -85,6 +106,9 @@ extension VigilManager {
             guard pmsetPrivilegeAvailable else { return false }
         }
 
+        LiveSessionContinuity.beginReconfiguration(for: self)
+        defer { LiveSessionContinuity.endReconfiguration(for: self) }
+
         let snapshot = captureLiveSessionSnapshot()
         LiveSessionContinuity.clear(for: self)
         await stopSession()
@@ -94,7 +118,7 @@ extension VigilManager {
     }
 
     /// Applies a preset to a running Vigil session without resetting the
-    /// current countdown.
+    /// current countdown or changing who owns the session lifetime.
     func changeModeLive(_ preset: RuntimeProfile) async -> Bool {
         if !isActive {
             applyPreset(preset)
@@ -114,6 +138,9 @@ extension VigilManager {
             guard pmsetPrivilegeAvailable else { return false }
         }
 
+        LiveSessionContinuity.beginReconfiguration(for: self)
+        defer { LiveSessionContinuity.endReconfiguration(for: self) }
+
         let snapshot = captureLiveSessionSnapshot()
         LiveSessionContinuity.clear(for: self)
         await stopSession()
@@ -130,9 +157,19 @@ extension VigilManager {
     }
 
     /// A deliberate duration change starts a new countdown. Mode and option
-    /// changes do not.
+    /// changes do not. The active-session handoff is still marked as internal
+    /// so Job Guard and the updater do not mistake it for a user stop.
     func changeDurationLive(_ duration: SessionDuration, customMinutes: Int? = nil) async -> Bool {
         let wasActive = isActive
+        if wasActive {
+            LiveSessionContinuity.beginReconfiguration(for: self)
+        }
+        defer {
+            if wasActive {
+                LiveSessionContinuity.endReconfiguration(for: self)
+            }
+        }
+
         LiveSessionContinuity.clear(for: self)
 
         if wasActive {
