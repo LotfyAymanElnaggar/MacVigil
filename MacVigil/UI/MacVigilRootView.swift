@@ -23,6 +23,7 @@ struct MacVigilRootView: View {
         .onChange(of: manager.isActive) { active in
             if !active {
                 jobs.handleVigilStoppedExternally()
+                updater.vigilDidBecomeInactive()
             }
         }
     }
@@ -47,6 +48,22 @@ struct MacVigilRootView: View {
 
             Spacer(minLength: 8)
 
+            Menu {
+                Toggle("Launch MacVigil at Login", isOn: launchAtLoginBinding)
+
+                Divider()
+
+                Button(updater.isChecking ? "Checking for Updates…" : "Check for Updates") {
+                    Task { await updater.checkForUpdates(userInitiated: true) }
+                }
+                .disabled(updater.isChecking || updater.isInstalling)
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("MacVigil options")
+
             Button(jobs.isWatching ? "Manage" : "Configure") {
                 openJobGuard()
             }
@@ -56,6 +73,13 @@ struct MacVigilRootView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { openJobGuard() }
+    }
+
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { updater.launchAtLoginEnabled },
+            set: { updater.setLaunchAtLogin($0) }
+        )
     }
 
     private func openJobGuard() {
