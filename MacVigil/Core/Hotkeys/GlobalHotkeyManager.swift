@@ -36,13 +36,6 @@ final class GlobalHotkeyManager: ObservableObject {
         self.enabled = defaults.object(forKey: enabledKey) == nil ? true : defaults.bool(forKey: enabledKey)
     }
 
-    deinit {
-        unregisterAll()
-        if let eventHandler {
-            RemoveEventHandler(eventHandler)
-        }
-    }
-
     func start() {
         guard !started else {
             if enabled && registeredHotKeys.isEmpty { registerAll() }
@@ -129,7 +122,7 @@ final class GlobalHotkeyManager: ObservableObject {
         let modifiers = UInt32(cmdKey | optionKey)
         for shortcut in Self.shortcuts {
             var ref: EventHotKeyRef?
-            var hotKeyID = EventHotKeyID(signature: signature, id: shortcut.id)
+            let hotKeyID = EventHotKeyID(signature: signature, id: shortcut.id)
             let status = RegisterEventHotKey(
                 shortcut.keyCode,
                 modifiers,
