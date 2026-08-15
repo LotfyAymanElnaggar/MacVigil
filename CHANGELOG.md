@@ -2,6 +2,34 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.7.0] - 2026-08-15
+
+### Added
+
+- a searchable **Job Guard process picker** so users can protect running apps and processes without finding a PID manually
+- app icons, PID, and current CPU usage in the process picker when available
+- one-click refresh plus manual PID entry for advanced cases
+- live Job Guard elapsed time in both the main panel and Job Guard window
+- recent command history with quick reuse and clear-history controls
+- last-job duration and command exit status feedback
+- actionable update notifications with **Update Now**, **Later**, and **View Release** actions
+- explicit Launch at Login success/failure status in the updater
+- the updater records its most recent background check time for UI/diagnostic use
+
+### Changed
+
+- Job Guard is now centered on choosing the work to protect rather than asking users to understand process IDs
+- the main menu-bar panel exposes Job Guard log and detach actions while a job is active
+- command and process jobs show a clearer active state, elapsed runtime, and protected PID
+- update notifications are presented even while the menu-bar app is already running in the foreground
+- the README now describes Job Guard and background updates at a product level without implementation-heavy detail
+
+### Safety
+
+- selecting a process never terminates or modifies that process; MacVigil only watches for its exit
+- detaching Job Guard leaves both the protected process and the current Vigil session running
+- **Update Now** from a notification does not interrupt an active Vigil session; the update waits for the user to end Vigil first
+
 ## [0.6.2] - 2026-08-15
 
 ### Fixed
