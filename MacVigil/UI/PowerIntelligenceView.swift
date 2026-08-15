@@ -35,7 +35,8 @@ struct PowerIntelligenceView: View {
             }
             .padding(20)
         }
-        .frame(width: 520, minHeight: 610)
+        .frame(width: 520)
+        .frame(minHeight: 610)
         .onAppear {
             NSApplication.shared.activate(ignoringOtherApps: true)
             Task { await power.sampleNow() }
