@@ -109,7 +109,7 @@ struct MacVigilApp: App {
         .menuBarExtraStyle(.window)
 
         Window("MacVigil Settings", id: "settings") {
-            MacVigilSettingsView(
+            MacVigilSettingsContainer(
                 manager: manager,
                 updater: updater,
                 jobs: jobs,
