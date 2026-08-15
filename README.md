@@ -19,7 +19,7 @@ Keep AI agents, local models, builds, servers, transfers, renders, and other lon
 
 ## Why MacVigil?
 
-A Mac can still be doing important work after you stop touching the keyboard: an AI coding agent may be editing files, a local model may be generating, a build may be compiling, or a transfer may still be running.
+A Mac can still be doing important work after you stop touching the keyboard: an AI coding agent may be editing files, a local model may be generating, a build may be compiling, a local server may be listening, or a transfer may still be running.
 
 MacVigil keeps that work protected while letting you choose exactly what stays awake.
 
@@ -27,7 +27,7 @@ MacVigil keeps that work protected while letting you choose exactly what stays a
 
 ## Native macOS interface
 
-On **macOS 26 and later**, MacVigil uses Apple's actual SwiftUI Liquid Glass APIs selectively for important menu controls while Settings follows the same structural hierarchy as a native macOS Settings-style app. It does not imitate Liquid Glass with custom blue/purple gradients, and it no longer places giant glass surfaces behind the entire Settings sidebar or content pane.
+On **macOS 26 and later**, MacVigil uses Apple's SwiftUI Liquid Glass APIs selectively for important menu controls while Settings follows a native macOS Settings-style hierarchy. It does not imitate Liquid Glass with custom blue/purple gradients, and it does not place giant glass surfaces behind the entire Settings sidebar or content pane.
 
 The design uses native system behavior throughout:
 
@@ -35,22 +35,20 @@ The design uses native system behavior throughout:
 - native grouped `Form` sections on the stable Settings content surface
 - system toggles, sliders, labels, buttons, navigation titles, focus, and selection behavior
 - native Liquid Glass for important menu controls such as mode cards, duration choices, Start/Stop, update actions, and quick destinations on macOS 26+
+- native `GroupBox` and system controls in Statistics instead of custom glass dashboard cards
 - no custom full-pane glass slab around the Settings sidebar, title, or detail content
 - compatibility with standard macOS appearance on macOS 13–15
 
 The interaction rule remains simple: **the whole visible control is clickable**. You do not need to aim directly at its label text.
 
-The menu-bar panel keeps the everyday workflow compact:
+The menu-bar panel keeps the everyday workflow compact and now tells you **why** Vigil is active:
 
-- one large **Start Vigil / Stop Vigil** action
-- **Compute Guard**, **Closed-Lid Eco**, and **Full Awake** mode controls
-- **15m, 30m, 1h, 2h, 4h, and Infinity** quick durations
-- a custom duration slider from 5 minutes to 12 hours with a live human-readable hours/minutes label
-- a battery reserve slider from 5–30%
-- direct **Job Guard**, **Statistics**, and **Settings** destinations
-- a visible update action when a new release is available
+- **Timer · Compute Guard · 52:14** for a normal timed session
+- **Job Guard · Port 3000 · listening** for a protected local server
+- **Job Guard · 3 jobs protected** for multi-workload sessions
+- **CLI · Compute Guard** for future command-line-owned sessions
 
-Advanced protection switches stay in Settings instead of crowding the everyday panel.
+Your configured global shortcut is shown in the panel instead of a hard-coded key combination.
 
 ## Settings
 
@@ -58,21 +56,17 @@ Settings is built to feel structurally close to macOS System Settings rather tha
 
 There is deliberately **less glass in Settings**. Liquid Glass is allowed to come from the operating system where appropriate instead of wrapping the sidebar, title, and complete detail pane in separate rounded glass containers. The bottom Vigil status is integrated into the sidebar with a standard bar-style footer rather than a floating glass card.
 
-The native sidebar means selection, row hit targets, keyboard navigation, focus, hover behavior, spacing, and appearance follow macOS conventions automatically. Settings mode and duration controls also use standard macOS button styles instead of the menu panel's custom glass presentation.
-
 Settings has dedicated sections for:
 
-- **General** — launch at login, global hotkeys, mode, duration, battery reserve
+- **General** — launch at login, mode, duration, battery reserve
 - **Vigil** — every major protection behavior independently controllable
 - **Job Guard** — multi-job session ownership and management
-- **Statistics** — recent local Vigil activity
-- **Hotkeys** — global shortcut status and reference
+- **Statistics** — local session history and filters
+- **Hotkeys** — customize global shortcuts
 - **Updates** — background checks and installation preferences
 - **Power & Safety** — battery, thermal, authorization, and external-power policy
 - **Appearance** — native system appearance and Liquid Glass availability
 - **About** — version and project information
-
-Toggle labels claim the full row width so users are not forced to target only the switch or text.
 
 ## Choose how your Mac stays awake
 
@@ -106,36 +100,62 @@ The battery reserve slider configures the cutoff used by battery safety. Mandato
 
 A timer is useful when you know how long work will take. **Job Guard** is for when you do not.
 
-Choose one or more running apps/processes, enter PIDs manually, or launch multiple commands directly with Vigil. MacVigil keeps one Job Guard session active while any selected job is still running and releases protection only after the **last protected job** finishes.
+One Job Guard session can protect several kinds of work at the same time:
 
-Each job is tracked independently. You can add more work while Job Guard is active, open command logs, detach one job without affecting the others, or detach all. Detaching never terminates the underlying process.
+- running apps and processes
+- manually entered PIDs
+- non-interactive shell commands
+- **TCP listening ports** for local servers
 
-Suggested and running processes use the whole process row as the **Add** target, while destructive **Detach** remains an explicit dedicated button so it cannot happen accidentally from a row click.
+MacVigil keeps one Job Guard session active while any protected item is still running and releases protection only after the **last protected item** finishes naturally.
+
+### Port watching
+
+Enter a TCP port such as **3000**, **5173**, **8000**, or **8080**. MacVigil verifies that a local listener exists and keeps Vigil active while that TCP port remains in the listening state. Port checking is local and uses the system `lsof` tool; it is not network traffic inspection.
+
+### Actionable workload detection
+
+MacVigil locally recognizes likely long-running developer workloads such as AI agents, local AI runtimes, builds, containers, dev servers, and transfers. Suggestions are heuristic and are never silently protected.
+
+You can protect one suggestion at a time or choose **Protect Suggested** to add the currently detected suggestions to the same Job Guard session.
+
+### Commands and project folders
+
+Commands still run non-interactively through `/bin/zsh -lc`, but you can now choose the project folder they run from instead of being limited to your home directory. Each launched command keeps its own log.
+
+When the final protected item finishes naturally, Job Guard releases Vigil and posts a local completion notification when notification permission is available. Detaching one or all items never terminates the underlying workload.
 
 ## Statistics
 
-The Statistics dashboard summarizes recent Vigil activity locally on your Mac:
+The Statistics dashboard summarizes Vigil activity locally on your Mac and retains up to **200 recent session records**.
 
-- protected time
-- completed session count
-- average and longest session
-- last-seven-days activity
+You can view and filter:
+
+- **7 Days**, **30 Days**, or **All** retained history
+- protected time, session count, average session, and longest session
+- activity by day
 - protection-mode usage
-- current battery and thermal state
-- recent session history with duration, battery change when available, and peak thermal state
+- session owner: **Timer**, **Job Guard**, or CLI-owned sessions when available
+- battery change when recorded
+- peak thermal state
+- recent session history
 
-Statistics are local. MacVigil does not upload statistics telemetry. Battery changes are observational rather than an efficiency benchmark because workload intensity and charging state also affect them.
+History can be filtered by mode and owner and exported to a local **CSV** file. MacVigil does not upload statistics telemetry. Battery changes are observational rather than an efficiency benchmark because charging state and workload intensity also affect them.
 
-## Global hotkeys
+## Customizable global hotkeys
 
-Global hotkeys work without opening the MacVigil menu first and can be disabled from **Settings → Hotkeys**.
+Global hotkeys work without opening the MacVigil menu first and can be disabled or customized from **Settings → Hotkeys**.
 
-| Action | Shortcut |
+Defaults are:
+
+| Action | Default shortcut |
 | --- | --- |
 | Start / Stop Vigil | **⌥⌘V** |
 | Compute Guard | **⌥⌘1** |
 | Closed-Lid Eco | **⌥⌘2** |
 | Full Awake | **⌥⌘3** |
+
+Click **Change**, press the new combination, and MacVigil saves and re-registers it immediately. At least one modifier key is required. Duplicate MacVigil shortcuts are rejected, system registration conflicts are reported, and each shortcut — or all shortcuts — can be reset to its default.
 
 Mode hotkeys change only the protection profile underneath the current session, so they do not detach Job Guard or replace its lifetime ownership. Closed-lid authorization and safety rules still apply.
 
@@ -177,11 +197,13 @@ Closed-lid behavior is still being tested across Mac models and macOS versions. 
 
 ## Privacy
 
-MacVigil works locally. No account or cloud service is required to keep your Mac awake. Statistics remain local. Update checks contact GitHub only when update checking is enabled.
+MacVigil works locally. No account or cloud service is required to keep your Mac awake. Job detection, port checks, session statistics, and CSV export remain local. Update checks contact GitHub only when update checking is enabled.
 
 ## Project status
 
 MacVigil is currently **pre-1.0** and under active testing. The focus is reliable runtime protection, job-aware sessions, closed-lid compatibility, energy-aware behavior, safe recovery, and a polished native macOS experience.
+
+The standalone `macvigil` CLI is still future work; the GUI session-ownership model is being kept ready for that control surface.
 
 See the [roadmap](ROADMAP.md) for upcoming work.
 
