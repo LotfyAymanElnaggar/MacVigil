@@ -1,0 +1,115 @@
+name: Build MacVigil
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build universal app
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP="build/MacVigil.app"
+          MACOS_DIR="$APP/Contents/MacOS"
+          mkdir -p "$MACOS_DIR" build/arm64 build/x86_64
+
+          SRC=(
+            MacVigil/App/MacVigilApp.swift
+            MacVigil/Models/SessionDuration.swift
+            MacVigil/Core/ShellRunner.swift
+            MacVigil/Core/Power/PowerAssertions.swift
+            MacVigil/Core/Power/SystemPowerVeto.swift
+            MacVigil/Core/Lid/RootDomainLidGuard.swift
+            MacVigil/Core/Display/BacklightController.swift
+            MacVigil/Core/Runtime/VigilManager.swift
+            MacVigil/UI/MenuBarView.swift
+          )
+
+          COMMON=(
+            -parse-as-library
+            -O
+            -framework SwiftUI
+            -framework AppKit
+            -framework CoreGraphics
+            -framework IOKit
+          )
+
+          xcrun --sdk macosx swiftc "${SRC[@]}" "${COMMON[@]}" \
+            -target arm64-apple-macos13.0 \
+            -o build/arm64/MacVigil
+
+          xcrun --sdk macosx swiftc "${SRC[@]}" "${COMMON[@]}" \
+            -target x86_64-apple-macos13.0 \
+            -o build/x86_64/MacVigil
+
+          xcrun lipo -create \
+            build/arm64/MacVigil \
+            build/x86_64/MacVigil \
+            -output "$MACOS_DIR/MacVigil"
+
+          xcrun --sdk macosx swiftc MacVigilWatchdog/Watchdog.swift \
+            -parse-as-library -O \
+            -framework CoreGraphics -framework IOKit \
+            -target arm64-apple-macos13.0 \
+            -o build/arm64/MacVigilWatchdog
+
+          xcrun --sdk macosx swiftc MacVigilWatchdog/Watchdog.swift \
+            -parse-as-library -O \
+            -framework CoreGraphics -framework IOKit \
+            -target x86_64-apple-macos13.0 \
+            -o build/x86_64/MacVigilWatchdog
+
+          xcrun lipo -create \
+            build/arm64/MacVigilWatchdog \
+            build/x86_64/MacVigilWatchdog \
+            -output "$MACOS_DIR/MacVigilWatchdog"
+
+          cp MacVigil/Info.plist "$APP/Contents/Info.plist"
+          chmod +x "$MACOS_DIR/MacVigil" "$MACOS_DIR/MacVigilWatchdog"
+
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+
+          file "$MACOS_DIR/MacVigil"
+          file "$MACOS_DIR/MacVigilWatchdog"
+
+      - name: Create DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/MacVigil.app/Contents/Info.plist)
+          STAGE="build/dmg"
+          mkdir -p "$STAGE"
+          cp -R build/MacVigil.app "$STAGE/MacVigil.app"
+          ln -s /Applications "$STAGE/Applications"
+
+          hdiutil create \
+            -volname "MacVigil" \
+            -srcfolder "$STAGE" \
+            -ov -format UDZO \
+            "build/MacVigil-${VERSION}.dmg"
+
+          shasum -a 256 "build/MacVigil-${VERSION}.dmg" > build/SHA256SUMS.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacVigil-universal
+          path: |
+            build/MacVigil-*.dmg
+            build/SHA256SUMS.txt
+          if-no-files-found: error
