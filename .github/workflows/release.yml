@@ -72,7 +72,9 @@ jobs:
             MacVigil/Core/Runtime/PreferenceStore.swift
             MacVigil/Core/Runtime/LiveReconfiguration.swift
             MacVigil/Core/Updates/UpdateManager.swift
+            MacVigil/Core/Jobs/JobAwareController.swift
             MacVigil/UI/PolishedMenuBarView.swift
+            MacVigil/UI/MacVigilRootView.swift
           )
 
           COMMON=(
