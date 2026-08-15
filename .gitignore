@@ -9,6 +9,7 @@ xcuserdata/
 
 # Local build output
 build/
+benchmark-results/
 
 # Signing / notarization material
 *.p12
