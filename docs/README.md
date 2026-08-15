@@ -4,6 +4,7 @@ MacVigil is an energy-aware runtime guard for macOS. These documents separate pr
 
 ## Start here
 
+- [Testing](TESTING.md) — the validation checklist for open-lid, closed-lid, battery, charger, external-display, and crash-recovery tests
 - [Power Efficiency](POWER-EFFICIENCY.md) — why MacVigil separates compute, display, lid, battery, and job lifetime
 - [Power Benchmarks](POWER-BENCHMARKS.md) — how efficiency claims should be measured
 - [Use Cases](USE-CASES.md) — AI, development, remote work, rendering, research, transfers, servers, and more
