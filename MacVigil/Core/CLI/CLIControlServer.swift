@@ -176,6 +176,42 @@ final class CLIControlServer {
             lines.append(contentsOf: statusLines(manager: manager, jobs: jobs))
             return success(request, "Job Guard updated.", lines: lines)
 
+        case "run-command":
+            guard let rawCommand = request.arguments.first?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !rawCommand.isEmpty else {
+                return failure(request, "Provide a command to launch.")
+            }
+
+            for key in request.environment.keys where !validEnvironmentKey(key) {
+                return failure(request, "Invalid environment key: \(key)")
+            }
+
+            var prefix: [String] = []
+            if let cwd = request.options["cwd"]?.trimmingCharacters(in: .whitespacesAndNewlines), !cwd.isEmpty {
+                let expanded = NSString(string: cwd).expandingTildeInPath
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDirectory), isDirectory.boolValue else {
+                    return failure(request, "Working directory does not exist: \(expanded)")
+                }
+                prefix.append("cd \(shellQuote(expanded))")
+            }
+            for (key, value) in request.environment.sorted(by: { $0.key < $1.key }) {
+                prefix.append("export \(key)=\(shellQuote(value))")
+            }
+
+            var currentDirectoryIsDirectory: ObjCBool = false
+            if !FileManager.default.fileExists(atPath: jobs.workingDirectoryPath, isDirectory: &currentDirectoryIsDirectory) || !currentDirectoryIsDirectory.boolValue {
+                jobs.resetWorkingDirectory()
+            }
+
+            let command = (prefix + [rawCommand]).joined(separator: "; ")
+            jobs.commandText = command
+            await jobs.runCommand()
+            if let error = jobs.lastError {
+                return failure(request, error)
+            }
+            return success(request, "Command added to Job Guard.", lines: statusLines(manager: manager, jobs: jobs))
+
         case "protect-suggested":
             await jobs.refreshProcesses()
             await jobs.protectSuggestedWorkloads()
@@ -278,6 +314,14 @@ final class CLIControlServer {
         case .user: return "Timer"
         case nil: return "None"
         }
+    }
+
+    private func validEnvironmentKey(_ value: String) -> Bool {
+        value.range(of: "^[A-Za-z_][A-Za-z0-9_]*$", options: .regularExpression) != nil
+    }
+
+    private func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     private func success(
