@@ -167,7 +167,7 @@ jobs:
             echo "Changelog committed at $RELEASE_TARGET_SHA"
           fi
 
-      - name: Build universal app
+      - name: Build universal app and CLI
         shell: bash
         run: |
           set -euo pipefail
@@ -192,6 +192,8 @@ jobs:
             MacVigil/Core/Updates/UpdateManager.swift
             MacVigil/Core/Jobs/JobAwareController.swift
             MacVigil/Core/Hotkeys/GlobalHotkeyManager.swift
+            MacVigil/Core/CLI/CLIProtocol.swift
+            MacVigil/Core/CLI/CLIControlServer.swift
             MacVigil/UI/PolishedMenuBarView.swift
             MacVigil/UI/MacVigilRootView.swift
             MacVigil/UI/PowerIntelligenceView.swift
@@ -225,12 +227,21 @@ jobs:
               -framework CoreGraphics -framework IOKit \
               -target "${ARCH}-apple-macos13.0" \
               -o "build/${ARCH}/MacVigilWatchdog"
+
+            xcrun --sdk macosx swiftc \
+              MacVigil/Core/CLI/CLIProtocol.swift \
+              MacVigilCLI/main.swift \
+              -O -framework Foundation \
+              -target "${ARCH}-apple-macos13.0" \
+              -o "build/${ARCH}/macvigil"
           done
 
           xcrun lipo -create build/arm64/MacVigil build/x86_64/MacVigil \
             -output "$MACOS_DIR/MacVigil"
           xcrun lipo -create build/arm64/MacVigilWatchdog build/x86_64/MacVigilWatchdog \
             -output "$MACOS_DIR/MacVigilWatchdog"
+          xcrun lipo -create build/arm64/macvigil build/x86_64/macvigil \
+            -output "$MACOS_DIR/macvigil"
 
           cp MacVigil/Info.plist "$APP/Contents/Info.plist"
 
@@ -246,15 +257,16 @@ jobs:
           /usr/bin/iconutil -c icns "$ICONSET" -o "$RESOURCES_DIR/MacVigil.icns"
           test -s "$RESOURCES_DIR/MacVigil.icns"
 
-          chmod +x "$MACOS_DIR/MacVigil" "$MACOS_DIR/MacVigilWatchdog"
+          chmod +x "$MACOS_DIR/MacVigil" "$MACOS_DIR/MacVigilWatchdog" "$MACOS_DIR/macvigil"
           codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict "$APP"
 
-          xcrun lipo -archs "$MACOS_DIR/MacVigil" | grep -q arm64
-          xcrun lipo -archs "$MACOS_DIR/MacVigil" | grep -q x86_64
-          xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q arm64
-          xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q x86_64
-          echo "Universal release binaries, native Liquid Glass availability, statistics, hotkeys, and app icon confirmed."
+          for BIN in MacVigil MacVigilWatchdog macvigil; do
+            xcrun lipo -archs "$MACOS_DIR/$BIN" | grep -q arm64
+            xcrun lipo -archs "$MACOS_DIR/$BIN" | grep -q x86_64
+          done
+          "$MACOS_DIR/macvigil" help | grep -q "control MacVigil from Terminal"
+          echo "Universal release app, watchdog, macvigil CLI, native Liquid Glass availability, statistics, hotkeys, and app icon confirmed."
 
       - name: Create release assets
         shell: bash
@@ -263,6 +275,8 @@ jobs:
           STAGE="build/dmg"
           mkdir -p "$STAGE"
           cp -R build/MacVigil.app "$STAGE/MacVigil.app"
+          cp build/MacVigil.app/Contents/MacOS/macvigil "$STAGE/macvigil"
+          chmod +x "$STAGE/macvigil"
           ln -s /Applications "$STAGE/Applications"
 
           hdiutil create \
