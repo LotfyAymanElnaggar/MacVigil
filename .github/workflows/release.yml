@@ -131,7 +131,6 @@ jobs:
             "build/SHA256SUMS.txt"
             --title "MacVigil $TAG"
             --generate-notes
-            --prerelease
           )
 
           if [[ "${GITHUB_REF_TYPE:-}" != "tag" ]]; then
