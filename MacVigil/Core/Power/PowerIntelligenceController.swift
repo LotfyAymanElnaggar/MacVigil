@@ -11,6 +11,7 @@ final class PowerIntelligenceController: ObservableObject {
         let endedAt: Date
         let durationSeconds: Int
         let configuration: String
+        let owner: String?
         let startBattery: Int?
         let endBattery: Int?
         let peakThermal: String
@@ -18,6 +19,10 @@ final class PowerIntelligenceController: ObservableObject {
         var batteryDelta: Int? {
             guard let startBattery, let endBattery else { return nil }
             return endBattery - startBattery
+        }
+
+        var ownerLabel: String {
+            owner ?? "Timer"
         }
     }
 
@@ -47,6 +52,7 @@ final class PowerIntelligenceController: ObservableObject {
     private var wakeObserver: NSObjectProtocol?
     private var lastManagerActive = false
     private var activeSessionConfiguration = ""
+    private var activeSessionOwner = "Timer"
     private var activePeakThermalRank = 0
     private var lastWarnedThermalRank = 0
     private var policyStopInFlight = false
@@ -79,6 +85,10 @@ final class PowerIntelligenceController: ObservableObject {
 
     var activeSessionElapsedText: String {
         Self.durationText(activeSessionElapsedSeconds)
+    }
+
+    var activeSessionOwnerLabel: String {
+        activeSessionOwner
     }
 
     func startBackgroundMonitoring() {
@@ -126,6 +136,42 @@ final class PowerIntelligenceController: ObservableObject {
         recentSessions = []
         UserDefaults.standard.removeObject(forKey: sessionHistoryKey)
         statusText = "Session history cleared."
+    }
+
+    func exportSessionHistoryCSV() {
+        guard !recentSessions.isEmpty else {
+            statusText = "There is no session history to export yet."
+            return
+        }
+
+        let panel = NSSavePanel()
+        panel.title = "Export MacVigil Statistics"
+        panel.nameFieldStringValue = "MacVigil-Sessions.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        var rows = ["started_at,ended_at,duration_seconds,mode,owner,start_battery,end_battery,battery_delta,peak_thermal"]
+        let iso = ISO8601DateFormatter()
+        for session in recentSessions.reversed() {
+            rows.append([
+                iso.string(from: session.startedAt),
+                iso.string(from: session.endedAt),
+                String(session.durationSeconds),
+                Self.csv(session.configuration),
+                Self.csv(session.ownerLabel),
+                session.startBattery.map(String.init) ?? "",
+                session.endBattery.map(String.init) ?? "",
+                session.batteryDelta.map(String.init) ?? "",
+                Self.csv(session.peakThermal)
+            ].joined(separator: ","))
+        }
+
+        do {
+            try (rows.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+            statusText = "Exported \(recentSessions.count) sessions to \(url.lastPathComponent)."
+        } catch {
+            statusText = "Could not export statistics: \(error.localizedDescription)"
+        }
     }
 
     func sampleNow() async {
@@ -201,6 +247,7 @@ final class PowerIntelligenceController: ObservableObject {
             activeSessionStartedAt = Date()
             activeSessionStartBattery = batteryPercent
             activeSessionConfiguration = manager.configurationName
+            activeSessionOwner = Self.ownerLabel(manager.sessionOwner)
             activePeakThermalRank = Self.thermalRank(thermalStatus)
             activeSessionPeakThermal = thermalStatus
             activeSessionElapsedSeconds = 0
@@ -208,6 +255,8 @@ final class PowerIntelligenceController: ObservableObject {
 
         if manager.isActive, let started = activeSessionStartedAt {
             activeSessionElapsedSeconds = max(0, Int(Date().timeIntervalSince(started)))
+            activeSessionConfiguration = manager.configurationName
+            activeSessionOwner = Self.ownerLabel(manager.sessionOwner)
         }
 
         if !manager.isActive && lastManagerActive {
@@ -226,14 +275,15 @@ final class PowerIntelligenceController: ObservableObject {
             endedAt: ended,
             durationSeconds: max(0, Int(ended.timeIntervalSince(started))),
             configuration: activeSessionConfiguration.isEmpty ? "Vigil" : activeSessionConfiguration,
+            owner: activeSessionOwner,
             startBattery: activeSessionStartBattery,
             endBattery: batteryPercent,
             peakThermal: activeSessionPeakThermal
         )
 
         recentSessions.insert(summary, at: 0)
-        if recentSessions.count > 12 {
-            recentSessions = Array(recentSessions.prefix(12))
+        if recentSessions.count > 200 {
+            recentSessions = Array(recentSessions.prefix(200))
         }
         persistSessionHistory()
 
@@ -241,6 +291,7 @@ final class PowerIntelligenceController: ObservableObject {
         activeSessionStartBattery = nil
         activeSessionElapsedSeconds = 0
         activeSessionConfiguration = ""
+        activeSessionOwner = "Timer"
         activePeakThermalRank = 0
         activeSessionPeakThermal = "Nominal"
     }
@@ -285,6 +336,19 @@ final class PowerIntelligenceController: ObservableObject {
             trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
+    }
+
+    private static func ownerLabel(_ owner: VigilSessionOwner?) -> String {
+        switch owner {
+        case .jobGuard: return "Job Guard"
+        case .commandLine: return "CLI"
+        case .user, .none: return "Timer"
+        }
+    }
+
+    private static func csv(_ value: String) -> String {
+        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+        return "\"\(escaped)\""
     }
 
     private static func firstIntegerMatch(pattern: String, text: String) -> Int? {
