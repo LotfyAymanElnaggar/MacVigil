@@ -24,8 +24,6 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
             })
             self.power?.startBackgroundMonitoring()
 
-            // Build the first local Job Guard suggestion set without waiting
-            // for the menu or Job Guard window to be opened.
             await self.jobs?.refreshProcesses()
         }
     }
@@ -101,7 +99,7 @@ struct MacVigilApp: App {
         .menuBarExtraStyle(.window)
 
         Window("Job Guard", id: "job-guard") {
-            JobGuardWindowView(manager: manager, jobs: jobs)
+            ReliableJobGuardWindowView(manager: manager, updater: updater, jobs: jobs)
                 .onAppear {
                     appDelegate.manager = manager
                     appDelegate.updater = updater
@@ -109,7 +107,7 @@ struct MacVigilApp: App {
                     appDelegate.power = power
                 }
         }
-        .defaultSize(width: 580, height: 680)
+        .defaultSize(width: 650, height: 740)
         .windowResizability(.contentSize)
 
         Window("Power Intelligence", id: "power-intelligence") {
@@ -133,7 +131,7 @@ struct MacVigilApp: App {
                     appDelegate.power = power
                 }
         }
-        .defaultSize(width: 470, height: 340)
+        .defaultSize(width: 470, height: 350)
         .windowResizability(.contentSize)
     }
 }
