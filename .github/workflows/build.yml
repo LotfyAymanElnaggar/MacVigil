@@ -44,6 +44,7 @@ jobs:
             MacVigil/Core/ShellRunner.swift
             MacVigil/Core/Power/PowerAssertions.swift
             MacVigil/Core/Power/SystemPowerVeto.swift
+            MacVigil/Core/Power/PowerIntelligenceController.swift
             MacVigil/Core/Lid/RootDomainLidGuard.swift
             MacVigil/Core/Display/BacklightController.swift
             MacVigil/Core/Runtime/VigilManager.swift
@@ -53,6 +54,8 @@ jobs:
             MacVigil/Core/Jobs/JobAwareController.swift
             MacVigil/UI/PolishedMenuBarView.swift
             MacVigil/UI/MacVigilRootView.swift
+            MacVigil/UI/PowerIntelligenceView.swift
+            MacVigil/UI/PowerIntelligenceBar.swift
           )
 
           COMMON=(
