@@ -1,11 +1,14 @@
 import SwiftUI
 import AppKit
+import UserNotifications
 
-final class MacVigilAppDelegate: NSObject, NSApplicationDelegate {
+final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     weak var manager: VigilManager?
     weak var updater: UpdateManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = self
+
         Task { @MainActor [weak self] in
             guard let self,
                   let manager = self.manager,
@@ -21,6 +24,26 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         manager?.handleAppTermination()
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let action = response.actionIdentifier
+        Task { @MainActor [weak self] in
+            self?.updater?.handleNotificationAction(action)
+        }
+        completionHandler()
     }
 }
 
@@ -63,7 +86,7 @@ struct MacVigilApp: App {
                     appDelegate.updater = updater
                 }
         }
-        .defaultSize(width: 520, height: 560)
+        .defaultSize(width: 560, height: 680)
         .windowResizability(.contentSize)
     }
 }
