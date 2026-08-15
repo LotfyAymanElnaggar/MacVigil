@@ -48,9 +48,15 @@ A timer is useful when you know how long work will take. **Job Guard** is for wh
 
 Choose a running app or process from the built-in picker, or run a command directly with Vigil. MacVigil stays active until that work exits and then releases protection automatically.
 
-Job Guard includes process search, live elapsed time, command logs, and recent-command history. Manual PID entry remains available for advanced cases.
+Job Guard can also suggest likely long-running local workloads such as AI runtimes, builds, containers, servers, and transfers. Suggestions are local and opt-in.
 
 That means a 38-minute build does not need a guessed four-hour awake timer.
+
+## Power Intelligence
+
+MacVigil shows current battery and thermal state, estimates time to your configured battery reserve when macOS provides a usable discharge estimate, and keeps lightweight statistics for recent Vigil sessions.
+
+For sustained closed-lid workloads, you can optionally require external power so MacVigil releases closed-lid protection if the Mac switches to battery.
 
 ## Fine-grained control
 
