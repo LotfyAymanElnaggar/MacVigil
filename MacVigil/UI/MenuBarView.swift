@@ -10,20 +10,17 @@ struct MenuBarView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 runtimeCard
-                profileSection
+                presetSection
+                protectionSwitches
+                closedLidSection
                 durationSection
                 safetySection
-
-                if manager.profile == .closedLidEco || manager.authorizationInstalled {
-                    closedLidSection
-                }
-
                 messageSection
                 footer
             }
             .padding(18)
         }
-        .frame(width: 420, height: 620)
+        .frame(width: 460, height: 760)
         .task {
             await manager.prepareOnLaunch()
         }
@@ -65,7 +62,7 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(manager.isActive ? manager.profile.title : "Vigil is off")
+                    Text(manager.isActive ? manager.configurationName : "Vigil is off")
                         .font(.headline)
                     Text(runtimeSubtitle)
                         .font(.caption)
@@ -79,14 +76,37 @@ struct MenuBarView: View {
 
             if manager.isActive {
                 Divider()
-                statusRow("Compute", value: "Protected", icon: "cpu")
+                statusRow(
+                    "System sleep",
+                    value: manager.preventSystemSleep ? "Blocked" : "Allowed",
+                    icon: "cpu"
+                )
+                statusRow(
+                    "Idle sleep",
+                    value: manager.preventIdleSystemSleep ? "Blocked" : "Allowed",
+                    icon: "clock"
+                )
                 statusRow("Display", value: displayValue, icon: "display")
+
+                if manager.closedLidProtectionRequested {
+                    statusRow(
+                        "SleepDisabled",
+                        value: manager.useGlobalSleepDisable
+                            ? (manager.sleepDisabledReadback ? "ON" : "Not verified")
+                            : "Off",
+                        icon: "lock.shield"
+                    )
+                    statusRow(
+                        "Kernel lid guard",
+                        value: manager.useKernelLidGuard
+                            ? (manager.kernelGuardActive ? "Armed" : "Not armed")
+                            : "Off",
+                        icon: "laptopcomputer"
+                    )
+                }
+
                 statusRow("Power", value: powerValue, icon: "battery.75percent")
                 statusRow("Thermal", value: manager.thermalStatus, icon: "thermometer.medium")
-
-                if manager.profile == .closedLidEco {
-                    statusRow("Lid guard", value: manager.kernelGuardActive ? "Armed" : "Not armed", icon: "laptopcomputer")
-                }
             }
 
             Button {
@@ -115,24 +135,137 @@ struct MenuBarView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private var profileSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Runtime profile", icon: "slider.horizontal.3")
-
-            Picker("Runtime profile", selection: $manager.profile) {
-                ForEach(RuntimeProfile.allCases) { profile in
-                    Text(profile.title).tag(profile)
-                }
+    private var presetSection: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                sectionTitle("Presets", icon: "square.grid.2x2")
+                Spacer()
+                Text(manager.configurationName)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .disabled(manager.isActive)
 
-            Text(manager.profile.subtitle)
+            HStack(spacing: 8) {
+                presetButton(.computeGuard, icon: "cpu")
+                presetButton(.closedLidEco, icon: "laptopcomputer")
+                presetButton(.fullAwake, icon: "sun.max")
+            }
+
+            Text("Presets only fill the switches below. Every protection behavior can be changed independently before starting.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var protectionSwitches: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            sectionTitle("Runtime protection", icon: "switch.2")
+
+            optionToggle(
+                "Prevent system sleep",
+                subtitle: "Hold the IOKit PreventSystemSleep assertion.",
+                isOn: $manager.preventSystemSleep
+            )
+
+            optionToggle(
+                "Prevent idle system sleep",
+                subtitle: "Keep the Mac available when there is no keyboard or mouse activity.",
+                isOn: $manager.preventIdleSystemSleep
+            )
+
+            optionToggle(
+                "Veto idle sleep requests",
+                subtitle: "Cancel cancellable IOKit idle-sleep permission requests while Vigil is active.",
+                isOn: $manager.vetoIdleSleepRequests
+            )
+
+            optionToggle(
+                "Keep display awake",
+                subtitle: "Prevent idle display sleep. Leave this off to save display power.",
+                isOn: $manager.keepDisplayAwake
+            )
+
+            if manager.isActive {
+                Label("End Vigil to change protection switches.", systemImage: "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .disabled(manager.isActive)
+    }
+
+    private var closedLidSection: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            sectionTitle("Closed-lid protection", icon: "laptopcomputer")
+
+            optionToggle(
+                "Global SleepDisabled",
+                subtitle: "Use pmset disablesleep=1 while the session is active. Requires compatible sudo authorization.",
+                isOn: $manager.useGlobalSleepDisable
+            )
+
+            optionToggle(
+                "Kernel clamshell guard",
+                subtitle: "Use the experimental IOPMrootDomain clamshell override (selector 12).",
+                isOn: $manager.useKernelLidGuard
+            )
+
+            optionToggle(
+                "Darken built-in display on lid close",
+                subtitle: "Set the built-in backlight to 0 when closed and no external display is detected.",
+                isOn: $manager.darkenBuiltinDisplayOnLidClose,
+                enabled: manager.closedLidProtectionRequested
+            )
+
+            Divider()
+
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: manager.pmsetPrivilegeAvailable ? "checkmark.shield.fill" : "exclamationmark.shield")
+                    .foregroundStyle(manager.pmsetPrivilegeAvailable ? Color.green : Color.secondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(manager.authorizationStatusText)
+                        .font(.subheadline.weight(.medium))
+                    Text("The MacVigil rule authorizes only pmset disablesleep 1 and 0. A compatible existing rule can also satisfy the check.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                Button(manager.authorizationInstalled ? "Remove…" : "Install…") {
+                    Task {
+                        if manager.authorizationInstalled {
+                            await manager.removeClosedLidAuthorization()
+                        } else {
+                            await manager.installClosedLidAuthorization()
+                        }
+                    }
+                }
+                .disabled(manager.isActive)
+            }
+
+            if manager.isActive && manager.closedLidProtectionRequested {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Live closed-lid state")
+                        .font(.caption.weight(.semibold))
+                    Text("SleepDisabled: \(manager.sleepDisabledReadback ? "1" : "0") · Kernel: \(manager.kernelGuardStatus)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                    Text(manager.displayStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Label("Crash-recovery cleanup stays enabled whenever closed-lid protection is active; it is not user-disableable.", systemImage: "cross.case")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .disabled(manager.isActive)
     }
 
     private var durationSection: some View {
@@ -164,70 +297,40 @@ struct MenuBarView: View {
     }
 
     private var safetySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionTitle("Power & safety", icon: "leaf")
+        VStack(alignment: .leading, spacing: 11) {
+            sectionTitle("Safety", icon: "leaf")
+
+            optionToggle(
+                "Battery reserve cutoff",
+                subtitle: "Stop closed-lid protection before the battery reaches the selected reserve.",
+                isOn: $manager.enableBatterySafety
+            )
 
             HStack {
                 Text("Battery reserve")
                 Spacer()
                 Picker("Battery reserve", selection: $manager.lowBatteryCutoff) {
-                    ForEach([10, 15, 20, 25], id: \.self) { value in
+                    ForEach([5, 10, 15, 20, 25, 30], id: \.self) { value in
                         Text("\(value)%").tag(value)
                     }
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+                .disabled(manager.isActive || !manager.enableBatterySafety)
             }
 
-            Text("Closed-Lid Eco stops at the reserve level and also releases the lid guard if macOS reports critical thermal pressure.")
+            optionToggle(
+                "Critical thermal cutoff",
+                subtitle: "Release closed-lid protection if macOS reports critical thermal pressure.",
+                isOn: $manager.enableThermalSafety
+            )
+
+            Text("Mandatory macOS safety transitions are never blocked by these switches.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    private var closedLidSection: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            sectionTitle("Closed-Lid Eco", icon: "laptopcomputer")
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(manager.authorizationInstalled ? "Authorization installed" : "Authorization required")
-                        .font(.subheadline.weight(.medium))
-                    Text("Only two exact pmset disablesleep commands are authorized.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-
-                Button(manager.authorizationInstalled ? "Remove…" : "Install…") {
-                    Task {
-                        if manager.authorizationInstalled {
-                            await manager.removeClosedLidAuthorization()
-                        } else {
-                            await manager.installClosedLidAuthorization()
-                        }
-                    }
-                }
-                .disabled(manager.isActive)
-            }
-
-            if manager.isActive && manager.profile == .closedLidEco {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(manager.kernelGuardActive ? Color.green : Color.red)
-                        .frame(width: 7, height: 7)
-                    Text(manager.kernelGuardStatus)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-
-                Text(manager.displayStatus)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
+        .disabled(manager.isActive)
     }
 
     @ViewBuilder
@@ -273,6 +376,47 @@ struct MenuBarView: View {
         .padding(.top, 2)
     }
 
+    private func presetButton(_ preset: RuntimeProfile, icon: String) -> some View {
+        Button {
+            manager.applyPreset(preset)
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                Text(preset.title)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.bordered)
+        .disabled(manager.isActive)
+    }
+
+    private func optionToggle(
+        _ title: String,
+        subtitle: String,
+        isOn: Binding<Bool>,
+        enabled: Bool = true
+    ) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .disabled(!enabled)
+        }
+        .opacity(enabled ? 1 : 0.55)
+    }
+
     private func sectionTitle(_ title: String, icon: String) -> some View {
         Label(title, systemImage: icon)
             .font(.caption.weight(.semibold))
@@ -295,7 +439,7 @@ struct MenuBarView: View {
     }
 
     private var runtimeSubtitle: String {
-        guard manager.isActive else { return "Choose a profile and protect the work that matters." }
+        guard manager.isActive else { return "Choose a preset or build your own protection stack." }
         guard let remaining = manager.remainingSeconds else { return "Running until you end it." }
 
         let total = max(0, Int(remaining.rounded()))
@@ -307,15 +451,12 @@ struct MenuBarView: View {
     }
 
     private var displayValue: String {
-        switch manager.profile {
-        case .fullAwake:
-            return "Protected"
-        case .computeGuard:
-            return "May sleep"
-        case .closedLidEco:
+        if manager.keepDisplayAwake { return "Kept awake" }
+        if manager.closedLidProtectionRequested && manager.darkenBuiltinDisplayOnLidClose {
             if manager.hasExternalDisplay { return "External display" }
-            return manager.backlightDimmed ? "Backlight dark" : (manager.lidIsClosed ? "Managing" : "Ready")
+            return manager.backlightDimmed ? "Backlight dark" : (manager.lidIsClosed ? "Managing" : "May sleep")
         }
+        return "May sleep"
     }
 
     private var powerValue: String {
