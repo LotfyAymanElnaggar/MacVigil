@@ -24,16 +24,19 @@ Legend: ✅ shipped · 🧪 experimental · 🚧 next · 💡 later
 - ✅ built-in GitHub release checking and verified update flow
 - ✅ background update notifications and optional automatic installation
 - ✅ Launch at Login
+- ✅ curated GitHub release notes per version
 - ✅ universal Apple Silicon + Intel builds
 - ✅ diagnostics for runtime, lid, display, battery, thermal, and sleep state
 - 🧪 experimental closed-lid kernel guard and built-in display darkening
 
 ## Job Guard
 
-Job-aware protection began in v0.6 and became user-friendly in v0.7.
+Job-aware protection began in v0.6, became user-friendly in v0.7, and gained smart suggestions in v0.8.
 
 - ✅ choose a running app or process from a searchable native picker
 - ✅ show app icon, PID, and CPU activity when available
+- ✅ surface likely long-running workloads as opt-in suggestions
+- ✅ categorize detected AI, local-model, build, container, server, and transfer workloads
 - ✅ watch an existing PID
 - ✅ release Vigil automatically when the watched process exits
 - ✅ run a non-interactive shell command under Vigil
@@ -43,6 +46,7 @@ Job-aware protection began in v0.6 and became user-friendly in v0.7.
 - ✅ release Vigil when the launched command exits
 - 🚧 working-directory picker for launched commands
 - 🚧 job-completion notification
+- 🚧 watch multiple related processes as one job
 - 💡 combine multiple process conditions with AND / OR rules
 
 ## CLI and developer workflows
@@ -62,10 +66,11 @@ Job-aware protection began in v0.6 and became user-friendly in v0.7.
 
 AI is a first-class use case, not a hard-coded dependency.
 
+- ✅ opt-in detection of common local AI runtimes and agent processes
+- ✅ identify likely AI/build/server workloads from running processes
 - 🚧 Agent Session preset
 - 🚧 Local Model Server preset
-- 🚧 opt-in detection of common local AI runtimes
-- 🚧 identify likely AI/build/server workloads from running processes
+- 🚧 smarter grouping of parent/child agent processes
 - 💡 repository indexing / embedding preset
 - 💡 agent completion integration
 
