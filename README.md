@@ -46,7 +46,9 @@ Best for presentations, dashboards, demos, monitoring, and kiosk-style use.
 
 A timer is useful when you know how long work will take. **Job Guard** is for when you do not.
 
-MacVigil can watch a running PID or launch a non-interactive command and keep Vigil active until that job actually finishes. When the job exits, MacVigil releases the protection automatically.
+Choose a running app or process from the built-in picker, or run a command directly with Vigil. MacVigil stays active until that work exits and then releases protection automatically.
+
+Job Guard includes process search, live elapsed time, command logs, and recent-command history. Manual PID entry remains available for advanced cases.
 
 That means a 38-minute build does not need a guessed four-hour awake timer.
 
@@ -77,7 +79,7 @@ MacVigil is useful for:
 3. Launch it from Applications.
 4. If you want closed-lid protection, install the optional authorization from inside MacVigil.
 
-MacVigil includes an in-app GitHub release checker. Automatic checking is enabled by default; automatic installation is optional.
+MacVigil can check GitHub for new releases in the background, notify you when one is ready, and optionally install verified updates automatically when Vigil is idle. Launch at Login is optional.
 
 MacVigil is currently distributed with ad-hoc signing rather than Apple notarization. On first launch, macOS may require **Right-click → Open** or approval from **System Settings → Privacy & Security**.
 
