@@ -4,143 +4,108 @@
 
 ### Local work, uninterrupted.
 
-**Energy-aware runtime protection for macOS. Keep AI agents, local models, builds, dev servers, renders, transfers, and long-running jobs alive without keeping everything else awake.**
+Keep AI agents, local models, builds, servers, transfers, renders, and other long-running work alive when you step away from your Mac.
 
+[![Release](https://img.shields.io/github/v/release/LotfyAymanElnaggar/MacVigil)](https://github.com/LotfyAymanElnaggar/MacVigil/releases)
 [![Build](https://github.com/LotfyAymanElnaggar/MacVigil/actions/workflows/build.yml/badge.svg)](https://github.com/LotfyAymanElnaggar/MacVigil/actions/workflows/build.yml)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](#requirements)
-[![Swift](https://img.shields.io/badge/Swift-native-orange?logo=swift)](#architecture)
-[![Status](https://img.shields.io/badge/status-pre--1.0-yellow)](#current-project-status)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[Why MacVigil](#why-macvigil) · [Power philosophy](#power-first-by-design) · [Roadmap](ROADMAP.md) · [Docs](docs/README.md) · [Compatibility](docs/COMPATIBILITY.md) · [Changelog](CHANGELOG.md)
+[Download](https://github.com/LotfyAymanElnaggar/MacVigil/releases) · [Roadmap](ROADMAP.md) · [Docs](docs/README.md) · [Changelog](CHANGELOG.md)
 
 </div>
 
 ---
 
-## Why MacVigil
+## Why MacVigil?
 
-Your Mac can be more than an interactive desktop. It can run a coding agent, local LLM, Docker stack, build, test suite, render, transfer, notebook, remote-development session, or temporary server.
+Modern Macs often keep doing useful work long after you stop touching the keyboard: an AI coding agent may still be editing files, a local model may be generating, a build may be compiling, or a transfer may still be running.
 
-Those jobs should not fail just because you stopped touching the keyboard.
+MacVigil keeps that work protected while giving you control over what stays awake.
 
-MacVigil is designed around a simple idea:
+**Keep the work running. Not everything else.**
 
-> **Protect the work. Do not waste power keeping components awake that the work does not need.**
+## Choose how your Mac stays awake
 
-That makes MacVigil different from treating “stay awake” as one global switch. Compute, display, lid behavior, battery safety, and eventually the lifetime of the actual job are separate concerns.
+### Compute Guard
+Keep the Mac available for long-running work while allowing the display to behave normally.
 
-## Power-first by design
+Best for AI agents, local models, builds, tests, servers, downloads, and remote access.
 
-MacVigil is being built around three runtime profiles:
+### Closed-Lid Eco
+Keep work running with the MacBook lid closed while darkening the built-in display and applying battery and thermal safeguards.
 
-| Profile | System | Built-in display | Best for |
-|---|---|---|---|
-| **Compute Guard** | Protected | May sleep normally | AI agents, builds, servers, downloads |
-| **Closed-Lid Eco** | Protected | Darkened when possible | headless MacBook workloads |
-| **Full Awake** | Protected | Kept awake | presentations, dashboards, demos |
+MacVigil can keep the display logically awake while the lid is dark, helping avoid Lock Screen behavior that can be triggered by display sleep. It does **not** change or weaken your macOS password or Lock Screen settings.
 
-The goal is not to claim “zero display power” without evidence. Brightness `0`, display sleep, panel power state, GPU activity, and system sleep are different things. MacVigil will publish repeatable measurements before making comparative energy claims.
+### Full Awake
+Keep both the Mac and display awake.
 
-See [Power Efficiency](docs/POWER-EFFICIENCY.md) and [Power Benchmarks](docs/POWER-BENCHMARKS.md).
+Best for presentations, dashboards, demos, monitoring, and kiosk-style use.
 
-## Built for modern local work
+## Fine-grained control
 
-Typical use cases include:
+Presets are only a starting point. Before starting a Vigil session, you can independently choose whether MacVigil should:
 
-- AI coding agents implementing, testing, reviewing, or refactoring a project
-- Ollama, LM Studio, MLX, llama.cpp, and other local-model runtimes
-- Xcode, Swift, Rust, C/C++, Node, Python, Android, and container builds
-- Docker / Docker Compose and local development servers
-- long-running tests, migrations, indexing, embeddings, and data processing
-- SSH, Tailscale, Screen Sharing, and remote-development access
-- large downloads, uploads, backups, model files, and repository clones
-- video, audio, photography, 3D, CAD, and batch renders
-- Jupyter, MATLAB, R, simulations, and research workloads
+- prevent system sleep
+- prevent idle sleep
+- prevent display sleep
+- protect closed-lid operation
+- darken the built-in display when the lid closes
+- stop at a battery reserve
+- release protection under critical thermal pressure
 
-Read the full [use-case guide](docs/USE-CASES.md).
+Sessions can run for a fixed duration, a custom duration, or indefinitely.
 
-## Current project status
+## Built for local work
 
-MacVigil is a **fresh production-oriented codebase** built from lessons learned in the earlier KeepAwakeMac prototype. The old repository remains separate as development history and compatibility research.
+MacVigil is useful for:
 
-The initial MacVigil milestone focuses on:
+- AI coding agents and autonomous development tasks
+- Ollama, LM Studio, MLX, llama.cpp, and other local AI runtimes
+- Xcode, Swift, Rust, Node, Python, Android, and container builds
+- Docker and local development servers
+- tests, migrations, indexing, embeddings, and data processing
+- SSH, Tailscale, Screen Sharing, and remote development
+- large downloads, uploads, backups, and model transfers
+- video, audio, 3D, CAD, and batch rendering
+- notebooks, simulations, and research workloads
 
-- native menu-bar UX
-- timed, custom, and indefinite runtime protection
-- three explicit runtime profiles
-- independent display policy
-- experimental closed-lid runtime protection
-- low-battery reserve and critical thermal-pressure handling
-- crash-safe restoration
-- transparent diagnostics
-- universal Apple Silicon + Intel builds
-- a clean foundation for job-aware and energy-aware automation
+## Install
 
-Closed-lid behavior depends on macOS implementation details and should be treated as experimental until the [compatibility matrix](docs/COMPATIBILITY.md) is broad enough.
+1. Download the newest DMG from [Releases](https://github.com/LotfyAymanElnaggar/MacVigil/releases).
+2. Drag **MacVigil** into **Applications**.
+3. Launch it from Applications.
+4. If you want closed-lid protection, install the optional authorization from inside MacVigil.
 
-## Product direction
-
-The long-term UX is not:
-
-> “Keep my Mac awake for four hours.”
-
-It is:
-
-> **“Protect this job until it is done.”**
-
-Planned examples:
-
-```bash
-macvigil run -- npm test
-macvigil watch-pid 43127
-macvigil watch-port 3000
-```
-
-When the protected process/server finishes, MacVigil can release its power assertions immediately instead of leaving the machine awake for the remainder of a guessed timer.
-
-See the complete [roadmap](ROADMAP.md).
+MacVigil is currently distributed with ad-hoc signing rather than Apple notarization. On first launch, macOS may require **Right-click → Open** or approval from **System Settings → Privacy & Security**.
 
 ## Safety
 
-Closed-lid compute creates real heat. Never run an actively loaded MacBook in a bag, sleeve, drawer, or other poorly ventilated space.
+Closed-lid workloads can generate significant heat. Do not run a heavily loaded MacBook inside a bag, sleeve, drawer, or other poorly ventilated space.
 
-MacVigil must never try to defeat mandatory safety behavior such as thermal emergency, critical-battery handling, shutdown, or other system-protection events.
-
-The project also does **not** silently weaken macOS password or Lock Screen security settings.
+MacVigil keeps battery and thermal safeguards available and does not attempt to override mandatory macOS safety shutdown behavior.
 
 ## Requirements
 
 - macOS 13 or later
 - Apple Silicon or Intel Mac
-- administrator approval only for the narrowly scoped closed-lid `pmset disablesleep` authorization
+- administrator approval only for optional closed-lid protection
 
-## Architecture
-
-MacVigil is native Swift / SwiftUI and intentionally keeps power-management responsibilities separated:
-
-```text
-MacVigil UI
-    │
-    ▼
-VigilManager
-    ├── Power assertions
-    ├── System sleep veto
-    ├── Root-domain lid guard
-    ├── Display/backlight controller
-    ├── Battery + thermal safety
-    └── Crash watchdog
-```
-
-See [Architecture](docs/ARCHITECTURE.md) for implementation details and compatibility caveats.
+Closed-lid behavior is still being tested across Mac models and macOS versions. See the [compatibility guide](docs/COMPATIBILITY.md) for current results.
 
 ## Privacy
 
-MacVigil is intended to work locally. It does not need an account or cloud service to keep a runtime alive.
+MacVigil works locally. No account or cloud service is required to keep your Mac awake.
+
+## Project status
+
+MacVigil is currently **pre-1.0** and under active testing. The focus is reliable runtime protection, closed-lid compatibility, energy-aware behavior, safe recovery, and a polished native macOS experience.
+
+See the [roadmap](ROADMAP.md) for what is coming next.
 
 ## Contributing
 
-Power-management bugs can leave a machine in an unexpected system-wide state, so changes to lid, privilege, watchdog, and cleanup behavior require extra care. Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting changes.
+Issues, compatibility reports, testing results, and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
