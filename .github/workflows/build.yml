@@ -18,6 +18,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate project metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          plutil -lint MacVigil/Info.plist
+          FILE_VERSION="$(tr -d '[:space:]' < RELEASE_VERSION)"
+          PLIST_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' MacVigil/Info.plist)
+          test -n "$FILE_VERSION"
+          test "$FILE_VERSION" = "$PLIST_VERSION"
+          echo "Version metadata confirmed: $FILE_VERSION"
+
       - name: Build universal app
         shell: bash
         run: |
@@ -36,6 +47,7 @@ jobs:
             MacVigil/Core/Lid/RootDomainLidGuard.swift
             MacVigil/Core/Display/BacklightController.swift
             MacVigil/Core/Runtime/VigilManager.swift
+            MacVigil/Core/Runtime/PreferenceStore.swift
             MacVigil/UI/MenuBarView.swift
           )
 
@@ -86,6 +98,11 @@ jobs:
 
           file "$MACOS_DIR/MacVigil"
           file "$MACOS_DIR/MacVigilWatchdog"
+          xcrun lipo -archs "$MACOS_DIR/MacVigil" | grep -q arm64
+          xcrun lipo -archs "$MACOS_DIR/MacVigil" | grep -q x86_64
+          xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q arm64
+          xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q x86_64
+          echo "Universal binaries confirmed."
 
       - name: Create DMG
         shell: bash
@@ -104,6 +121,9 @@ jobs:
             "build/MacVigil-${VERSION}.dmg"
 
           shasum -a 256 "build/MacVigil-${VERSION}.dmg" > build/SHA256SUMS.txt
+          test -s "build/MacVigil-${VERSION}.dmg"
+          test -s build/SHA256SUMS.txt
+          echo "DMG and checksum confirmed."
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
