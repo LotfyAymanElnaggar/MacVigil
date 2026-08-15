@@ -21,10 +21,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve version
+      - name: Resolve and validate version
         shell: bash
         run: |
           set -euo pipefail
+          plutil -lint MacVigil/Info.plist
 
           if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
@@ -39,10 +40,16 @@ jobs:
             exit 1
           fi
 
+          if [[ "${GITHUB_REF_TYPE:-}" != "tag" ]]; then
+            PLIST_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' MacVigil/Info.plist)
+            test "$VERSION" = "$PLIST_VERSION"
+          fi
+
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "TAG=v$VERSION" >> "$GITHUB_ENV"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" MacVigil/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${GITHUB_RUN_NUMBER}" MacVigil/Info.plist
+          echo "Release metadata confirmed: v$VERSION"
 
       - name: Build universal app
         shell: bash
@@ -62,6 +69,7 @@ jobs:
             MacVigil/Core/Lid/RootDomainLidGuard.swift
             MacVigil/Core/Display/BacklightController.swift
             MacVigil/Core/Runtime/VigilManager.swift
+            MacVigil/Core/Runtime/PreferenceStore.swift
             MacVigil/UI/MenuBarView.swift
           )
 
@@ -96,6 +104,12 @@ jobs:
           codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict "$APP"
 
+          xcrun lipo -archs "$MACOS_DIR/MacVigil" | grep -q arm64
+          xcrun lipo -archs "$MACOS_DIR/MacVigil" | grep -q x86_64
+          xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q arm64
+          xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q x86_64
+          echo "Universal release binaries confirmed."
+
       - name: Create release assets
         shell: bash
         run: |
@@ -112,6 +126,9 @@ jobs:
             "build/MacVigil-${VERSION}.dmg"
 
           (cd build && shasum -a 256 "MacVigil-${VERSION}.dmg" > SHA256SUMS.txt)
+          test -s "build/MacVigil-${VERSION}.dmg"
+          test -s build/SHA256SUMS.txt
+          echo "Release DMG and checksum confirmed."
 
       - name: Publish GitHub release
         env:
@@ -138,3 +155,4 @@ jobs:
           fi
 
           gh release create "${ARGS[@]}"
+          gh release view "$TAG" --json url,isDraft,isPrerelease,assets
