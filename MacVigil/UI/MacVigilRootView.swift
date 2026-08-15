@@ -6,7 +6,7 @@ struct MacVigilRootView: View {
     @ObservedObject var updater: UpdateManager
     @ObservedObject var jobs: JobAwareController
 
-    @State private var showJobGuard = false
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,9 +20,6 @@ struct MacVigilRootView: View {
                 .background(.ultraThinMaterial)
         }
         .frame(width: 448, height: 782)
-        .sheet(isPresented: $showJobGuard) {
-            JobGuardSheet(manager: manager, jobs: jobs)
-        }
         .onChange(of: manager.isActive) { active in
             if !active {
                 jobs.handleVigilStoppedExternally()
@@ -51,74 +48,94 @@ struct MacVigilRootView: View {
             Spacer(minLength: 8)
 
             Button(jobs.isWatching ? "Manage" : "Configure") {
-                showJobGuard = true
+                openJobGuard()
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .help("Configure job-aware Vigil")
+            .help("Open Job Guard in a dedicated window")
         }
         .contentShape(Rectangle())
-        .onTapGesture { showJobGuard = true }
+        .onTapGesture { openJobGuard() }
+    }
+
+    private func openJobGuard() {
+        // Job Guard intentionally lives in its own regular window. Presenting
+        // text fields as a sheet from a MenuBarExtra window can lose key focus
+        // and dismiss immediately on some macOS versions.
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        openWindow(id: "job-guard")
     }
 }
 
-private struct JobGuardSheet: View {
+struct JobGuardWindowView: View {
     @ObservedObject var manager: VigilManager
     @ObservedObject var jobs: JobAwareController
 
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedField: Field?
     @State private var hoveringPID = false
     @State private var hoveringCommand = false
 
+    private enum Field: Hashable {
+        case pid
+        case command
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Label("Job Guard", systemImage: "briefcase.fill")
-                        .font(.title3.weight(.semibold))
-                    Text("Protect the work until the work is done.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Label("Job Guard", systemImage: "briefcase.fill")
+                            .font(.title3.weight(.semibold))
+                        Text("Protect the work until the work is done.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button("Done") { dismiss() }
+                        .buttonStyle(.bordered)
+                        .keyboardShortcut(.cancelAction)
                 }
 
-                Spacer()
+                if jobs.isWatching {
+                    activeJobCard
+                } else {
+                    watchPIDCard
+                    runCommandCard
+                }
 
-                Button("Done") { dismiss() }
-                    .buttonStyle(.bordered)
+                if let error = jobs.lastError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let status = jobs.statusText {
+                    Label(status, systemImage: jobs.isWatching ? "bolt.shield.fill" : "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Divider()
+
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                    Text("Starting Job Guard changes the active duration to ‘until the job finishes’. Your selected timer is restored as the preference after Job Guard ends. Mode and protection options can still be changed live.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-
-            if jobs.isWatching {
-                activeJobCard
-            } else {
-                watchPIDCard
-                runCommandCard
-            }
-
-            if let error = jobs.lastError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if let status = jobs.statusText {
-                Label(status, systemImage: jobs.isWatching ? "bolt.shield.fill" : "checkmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Divider()
-
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "info.circle")
-                    .foregroundStyle(.secondary)
-                Text("Starting Job Guard changes the active duration to ‘until the job finishes’. Your selected timer is restored as the preference after Job Guard ends. Mode and protection options can still be changed live.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            .padding(20)
         }
-        .padding(20)
-        .frame(width: 500)
+        .frame(width: 520, minHeight: 520)
+        .onAppear {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
     }
 
     private var activeJobCard: some View {
@@ -182,6 +199,11 @@ private struct JobGuardSheet: View {
             HStack(spacing: 8) {
                 TextField("PID, for example 43127", text: $jobs.pidText)
                     .textFieldStyle(.roundedBorder)
+                    .focused($focusedField, equals: .pid)
+                    .onSubmit {
+                        guard !jobs.pidText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                        Task { await jobs.watchPID() }
+                    }
 
                 Button("Watch PID") {
                     Task { await jobs.watchPID() }
@@ -213,6 +235,11 @@ private struct JobGuardSheet: View {
 
             TextField("npm test  ·  python train.py  ·  make build", text: $jobs.commandText)
                 .textFieldStyle(.roundedBorder)
+                .focused($focusedField, equals: .command)
+                .onSubmit {
+                    guard !jobs.commandText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    Task { await jobs.runCommand() }
+                }
 
             HStack {
                 Text("Runs with /bin/zsh -lc")
