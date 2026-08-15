@@ -70,7 +70,9 @@ jobs:
             MacVigil/Core/Display/BacklightController.swift
             MacVigil/Core/Runtime/VigilManager.swift
             MacVigil/Core/Runtime/PreferenceStore.swift
+            MacVigil/Core/Runtime/LiveReconfiguration.swift
             MacVigil/UI/MenuBarView.swift
+            MacVigil/UI/LiveMenuBarView.swift
           )
 
           COMMON=(
