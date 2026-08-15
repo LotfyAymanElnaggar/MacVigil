@@ -1,183 +1,121 @@
 # MacVigil Roadmap
 
-MacVigil is evolving into an **energy-aware local runtime guard for macOS**: protect the job that matters, minimize unnecessary awake components, and release protection as soon as the job is done.
+MacVigil is becoming an **energy-aware local runtime guard for macOS**: protect the work that matters, avoid keeping unnecessary components awake, and release protection when the work is done.
 
-Legend: ✅ shipped in the fresh MacVigil foundation · 🧪 experimental · 🚧 planned · 💡 later
+Legend: ✅ shipped · 🧪 experimental · 🚧 next · 💡 later
 
 ## Product principles
 
-1. **Protect the job, not every component.** CPU/network availability should not automatically imply a bright display.
-2. **Measure before claiming.** Comparative power claims require repeatable tests on the same hardware, OS, workload, duration, and display state.
-3. **Safety wins.** Critical battery, thermal emergency, shutdown, and mandatory macOS protections must override convenience.
-4. **Restore state cleanly.** System-wide settings need ownership tracking, readback verification, and crash recovery.
-5. **End when the work ends.** A 40-minute job should not keep a Mac awake for a guessed four-hour timer.
-6. **Explain the state.** Users should be able to see what MacVigil is protecting and why.
+1. **Protect the job, not every component.**
+2. **End when the work ends.** A 40-minute job should not need a guessed four-hour timer.
+3. **Safety wins.** Battery, thermal, shutdown, and mandatory macOS protections remain in control.
+4. **Restore state cleanly.** MacVigil should leave normal macOS behavior behind when Vigil ends.
+5. **Measure before claiming.** Power-efficiency comparisons require repeatable measurements.
+6. **Explain the state.** Users should always be able to see what is protected and why.
 
----
+## Shipped foundation
 
-## 0.1 — Fresh MacVigil foundation
+- ✅ native SwiftUI menu-bar app
+- ✅ Compute Guard, Closed-Lid Eco, and Full Awake
+- ✅ fixed, custom, and indefinite sessions
+- ✅ live mode and protection changes without resetting the active timer
+- ✅ independent system, idle, display, lid, battery, and thermal controls
+- ✅ closed-lid crash recovery watchdog
+- ✅ built-in GitHub release checking and verified update flow
+- ✅ universal Apple Silicon + Intel builds
+- ✅ diagnostics for runtime, lid, display, battery, thermal, and sleep state
+- 🧪 experimental closed-lid kernel guard and built-in display darkening
 
-- ✅ new `MacVigil` product identity and bundle ID
-- ✅ native SwiftUI menu-bar application
-- ✅ **Compute Guard**, **Closed-Lid Eco**, and **Full Awake** profiles
-- ✅ timed, custom, and indefinite sessions
-- ✅ IOKit system + idle-sleep assertions
-- ✅ optional display-awake assertion only for Full Awake
-- ✅ active idle-sleep veto while a session is running
-- ✅ low-battery reserve for closed-lid operation
-- ✅ critical thermal-pressure closed-lid shutdown
-- ✅ narrowly scoped one-time `pmset disablesleep` authorization
-- 🧪 direct IOPM root-domain clamshell guard
-- 🧪 private DisplayServices brightness save/restore for closed-lid darkening
-- ✅ crash watchdog with ownership-aware cleanup
-- ✅ universal Apple Silicon + Intel GitHub Actions builds
-- ✅ detailed power/lid/sleep diagnostics
+## Job Guard
 
-### Stabilization
+The first job-aware workflow shipped in v0.6.0.
 
-- 🚧 validate on multiple Apple Silicon generations
-- 🚧 validate on Intel hardware
-- 🚧 test stable macOS releases and current macOS betas separately
-- 🚧 publish a Mac model × macOS compatibility matrix
-- 🚧 harden lid/wake race handling
-- 🚧 unit-test parsing and ownership logic
-- 🚧 distinguish **display dark**, **display asleep**, and **system asleep** explicitly in diagnostics
+- ✅ watch an existing PID
+- ✅ release Vigil automatically when the watched PID exits
+- ✅ run a non-interactive shell command under Vigil
+- ✅ capture command output to a log
+- ✅ release Vigil when the launched command exits
+- 🚧 choose a running process from a native process picker
+- 🚧 working-directory picker for launched commands
+- 🚧 preserve and present richer command exit details
+- 🚧 completion notification
+- 💡 combine multiple process conditions with AND / OR rules
 
----
+## CLI and developer workflows
 
-## 0.2 — Power Safety
+- 🚧 `macvigil` command-line tool
+- 🚧 `macvigil run -- npm test`
+- 🚧 `macvigil watch-pid 43127`
+- 🚧 watch a TCP port such as a local dev server
+- 🚧 Docker container and Compose project triggers
+- 🚧 shell completion
+- 🚧 Homebrew Cask
+- 🚧 launch-at-login option
+- 💡 Shortcuts support
+- 💡 URL scheme and local API
+- 💡 editor / Raycast integrations
 
-### Battery intelligence
+## AI and local-agent workflows
 
-- 🚧 separate reserves for battery and external-power sessions
-- 🚧 optional “Closed-Lid Eco only on external power” policy
-- 🚧 warning before reserve cutoff
-- 🚧 estimated time to reserve using recent discharge rate
-- 💡 session energy budget (for example, stop after approximately N Wh)
-
-### Thermal intelligence
-
-- ✅ expose current `ProcessInfo.thermalState`
-- ✅ disarm Closed-Lid Eco at `.critical`
-- 🚧 warning state at `.serious`
-- 🚧 session history records thermal-triggered shutdowns
-- 💡 Conservative / Balanced / Performance safety policies
-
-### Display efficiency
-
-- ✅ Compute Guard does not hold a display-awake assertion
-- 🧪 Closed-Lid Eco can set the built-in backlight to 0 and restore it
-- 🚧 benchmark brightness 0 vs normal display sleep
-- 🚧 investigate safe panel power-off paths without misrepresenting private APIs as stable macOS contracts
-- 🚧 never blank an external display unless the user explicitly chooses that behavior
-
----
-
-## 0.3 — Power Metrics
-
-MacVigil should earn its efficiency claims with data.
-
-- 🚧 publish repeatable benchmark protocol
-- 🚧 baseline normal macOS idle behavior
-- 🚧 benchmark `caffeinate`
-- 🚧 benchmark equivalent Amphetamine configurations
-- 🚧 benchmark MacVigil Compute Guard
-- 🚧 benchmark MacVigil Closed-Lid Eco
-- 🚧 publish battery delta, average package/system power where measurable, temperature, and task completion
-- 💡 per-session estimated energy consumption
-- 💡 “energy avoided” estimate when a job-aware session ends earlier than a timer would have
-
-See [docs/POWER-BENCHMARKS.md](docs/POWER-BENCHMARKS.md).
-
----
-
-## 0.4 — Job-Aware Vigil
-
-The major UX shift: **protect this job until it is done**.
-
-### Processes and commands
-
-- 🚧 keep awake while a selected process is running
-- 🚧 keep awake while a PID exists
-- 🚧 command wrapper:
-
-```bash
-macvigil run -- npm test
-```
-
-- 🚧 release assertions when the command exits
-- 🚧 preserve and display command exit status
-- 💡 AND/OR rules for multiple processes
-
-### Servers and ports
-
-- 🚧 keep awake while a TCP port is listening
-
-```bash
-macvigil watch-port 3000
-```
-
-- 🚧 local dev-server preset
-- 🚧 local inference-server preset
-- 💡 network-traffic-aware release grace period
-
-### Containers
-
-- 🚧 Docker container trigger
-- 🚧 Docker Compose project trigger
-- 💡 local Kubernetes workload trigger
-
----
-
-## 0.5 — AI / Agent Workflows
-
-AI is a first-class use case, not a hard-coded brand dependency.
+AI is a first-class use case, not a hard-coded dependency.
 
 - 🚧 Agent Session preset
 - 🚧 Local Model Server preset
-- 🚧 repository indexing / embedding preset
-- 🚧 detect common long-running local AI processes with opt-in rules
-- 🚧 show which process is currently keeping Vigil active
-- 💡 completion notification
-- 💡 Shortcuts action: Start/End Vigil for a process
-- 💡 local API for agent/tool integration
+- 🚧 opt-in detection of common local AI runtimes
+- 🚧 show which process or command is keeping Vigil active
+- 💡 repository indexing / embedding preset
+- 💡 agent completion integration
 
-The app should remain useful even if specific AI tools change.
+## Power safety
 
----
+- ✅ battery reserve cutoff for closed-lid operation
+- ✅ critical thermal cutoff
+- 🚧 warning state at serious thermal pressure
+- 🚧 estimated time to battery reserve
+- 🚧 optional Closed-Lid Eco only on external power
+- 💡 session energy budget
 
-## 0.6 — Developer Integrations
+## Power measurements
 
-- 🚧 `macvigil` CLI
-- 🚧 Homebrew Cask
-- 🚧 Shortcuts support
-- 🚧 URL scheme
-- 🚧 shell completion
-- 🚧 launch-at-login option
-- 💡 VS Code / editor integrations
-- 💡 Raycast extension
-- 💡 local webhook on session completion
+MacVigil should earn efficiency claims with data.
 
----
+- 🚧 baseline normal macOS behavior
+- 🚧 benchmark `caffeinate`
+- 🚧 benchmark equivalent Amphetamine configurations
+- 🚧 benchmark Compute Guard and Closed-Lid Eco
+- 🚧 publish battery delta, elapsed time, temperature, and available system-power measurements
+- 💡 estimate energy avoided when Job Guard ends earlier than a timer would have
+
+See [docs/POWER-BENCHMARKS.md](docs/POWER-BENCHMARKS.md).
+
+## Compatibility and distribution
+
+- 🚧 validate multiple Apple Silicon generations
+- 🚧 validate Intel hardware
+- 🚧 maintain a Mac model × macOS compatibility matrix
+- 🚧 harden lid/wake race handling
+- 🚧 deliberate crash-recovery testing
+- 🚧 Developer ID signing
+- 🚧 Apple notarization
 
 ## 1.0 criteria
 
 MacVigil should not call itself 1.0 until:
 
-- stable open-lid protection is validated broadly
-- closed-lid behavior has a published compatibility matrix and clear unsupported cases
-- crash recovery has been tested deliberately
-- battery + thermal safeguards are reliable
+- open-lid protection is broadly validated
+- closed-lid compatibility and unsupported cases are documented
+- crash recovery is deliberately tested
+- battery and thermal safeguards are reliable
 - power benchmarks are reproducible
-- the app is Developer ID signed and notarized for normal direct distribution
-- installation/uninstallation and authorization cleanup are documented and tested
+- the app is Developer ID signed and notarized
+- installation, updating, and authorization cleanup are tested and documented
 
 ## Not goals
 
 MacVigil will not:
 
 - defeat mandatory thermal or critical-battery safety behavior
-- silently modify macOS password / Lock Screen policy
+- silently modify macOS password or Lock Screen policy
 - claim private or undocumented APIs are stable Apple contracts
-- claim lower power usage than another product without a reproducible benchmark
-- keep the machine awake indefinitely when a known protected job has already completed
+- claim lower power usage than another product without reproducible measurements
+- keep the machine awake indefinitely after a known protected job has finished
