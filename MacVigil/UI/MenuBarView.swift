@@ -62,7 +62,7 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(manager.isActive ? manager.configurationName : "Vigil is off")
+                    Text(manager.isActive ? displayConfigurationName : "Vigil is off")
                         .font(.headline)
                     Text(runtimeSubtitle)
                         .font(.caption)
@@ -140,7 +140,7 @@ struct MenuBarView: View {
             HStack {
                 sectionTitle("Presets", icon: "square.grid.2x2")
                 Spacer()
-                Text(manager.configurationName)
+                Text(displayConfigurationName)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
             }
@@ -151,7 +151,7 @@ struct MenuBarView: View {
                 presetButton(.fullAwake, icon: "sun.max")
             }
 
-            Text("Presets only fill the switches below. Every protection behavior can be changed independently before starting.")
+            Text("Presets fill the switches below. Every protection behavior can still be changed independently before starting.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -164,7 +164,7 @@ struct MenuBarView: View {
 
             optionToggle(
                 "Prevent system sleep",
-                subtitle: "Hold the IOKit PreventSystemSleep assertion.",
+                subtitle: "Keep long-running work alive while Vigil is active.",
                 isOn: $manager.preventSystemSleep
             )
 
@@ -176,15 +176,25 @@ struct MenuBarView: View {
 
             optionToggle(
                 "Veto idle sleep requests",
-                subtitle: "Cancel cancellable IOKit idle-sleep permission requests while Vigil is active.",
+                subtitle: "Block cancellable idle-sleep requests while Vigil is active.",
                 isOn: $manager.vetoIdleSleepRequests
             )
 
             optionToggle(
-                "Keep display awake",
-                subtitle: "Prevent idle display sleep. Leave this off to save display power.",
+                "Prevent display sleep",
+                subtitle: "Keep macOS from putting the display to sleep. Closed-Lid Eco enables this so the lid can be dark without relying on display sleep, which may trigger your Lock Screen policy.",
                 isOn: $manager.keepDisplayAwake
             )
+
+            if manager.closedLidProtectionRequested && !manager.keepDisplayAwake {
+                Label(
+                    "Your Mac may show the Lock Screen when the display sleeps. MacVigil never changes your password or Lock Screen settings.",
+                    systemImage: "lock.display"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
 
             if manager.isActive {
                 Label("End Vigil to change protection switches.", systemImage: "lock.fill")
@@ -201,19 +211,19 @@ struct MenuBarView: View {
 
             optionToggle(
                 "Global SleepDisabled",
-                subtitle: "Use pmset disablesleep=1 while the session is active. Requires compatible sudo authorization.",
+                subtitle: "Keep macOS system sleep disabled while the selected session is active. Requires authorization.",
                 isOn: $manager.useGlobalSleepDisable
             )
 
             optionToggle(
                 "Kernel clamshell guard",
-                subtitle: "Use the experimental IOPMrootDomain clamshell override (selector 12).",
+                subtitle: "Use the experimental closed-lid guard for supported Macs and macOS versions.",
                 isOn: $manager.useKernelLidGuard
             )
 
             optionToggle(
                 "Darken built-in display on lid close",
-                subtitle: "Set the built-in backlight to 0 when closed and no external display is detected.",
+                subtitle: "Set the built-in backlight to 0 when the lid closes and no external display is connected. This does not weaken Lock Screen security.",
                 isOn: $manager.darkenBuiltinDisplayOnLidClose,
                 enabled: manager.closedLidProtectionRequested
             )
@@ -227,7 +237,7 @@ struct MenuBarView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(manager.authorizationStatusText)
                         .font(.subheadline.weight(.medium))
-                    Text("The MacVigil rule authorizes only pmset disablesleep 1 and 0. A compatible existing rule can also satisfy the check.")
+                    Text("MacVigil authorizes only the two commands needed to enable and restore closed-lid sleep behavior.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -379,6 +389,13 @@ struct MenuBarView: View {
     private func presetButton(_ preset: RuntimeProfile, icon: String) -> some View {
         Button {
             manager.applyPreset(preset)
+
+            // Closed-Lid Eco keeps the display logically awake while the
+            // backlight is darkened on lid close. This avoids relying on
+            // display sleep, which can trigger the user's Lock Screen policy.
+            if preset == .closedLidEco {
+                manager.keepDisplayAwake = true
+            }
         } label: {
             VStack(spacing: 5) {
                 Image(systemName: icon)
@@ -450,8 +467,30 @@ struct MenuBarView: View {
         return String(format: "%02d:%02d remaining", minutes, seconds)
     }
 
+    private var displayConfigurationName: String {
+        if manager.preventSystemSleep,
+           manager.preventIdleSystemSleep,
+           manager.keepDisplayAwake,
+           manager.vetoIdleSleepRequests,
+           manager.useGlobalSleepDisable,
+           manager.useKernelLidGuard,
+           manager.darkenBuiltinDisplayOnLidClose {
+            return RuntimeProfile.closedLidEco.title
+        }
+
+        return manager.configurationName
+    }
+
     private var displayValue: String {
-        if manager.keepDisplayAwake { return "Kept awake" }
+        if manager.keepDisplayAwake {
+            if manager.closedLidProtectionRequested && manager.darkenBuiltinDisplayOnLidClose {
+                if manager.hasExternalDisplay { return "External display" }
+                if manager.backlightDimmed { return "Dark · display awake" }
+                return manager.lidIsClosed ? "Darkening" : "Awake until lid closes"
+            }
+            return "Kept awake"
+        }
+
         if manager.closedLidProtectionRequested && manager.darkenBuiltinDisplayOnLidClose {
             if manager.hasExternalDisplay { return "External display" }
             return manager.backlightDimmed ? "Backlight dark" : (manager.lidIsClosed ? "Managing" : "May sleep")
