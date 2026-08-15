@@ -9,8 +9,19 @@ final class VigilManager: ObservableObject {
 
     @Published var selectedDuration: SessionDuration = .oneHour
     @Published var customMinutes = 90
-    @Published var profile: RuntimeProfile = .computeGuard
     @Published var lowBatteryCutoff = 15
+
+    // Every runtime behavior is independently configurable. Presets only set
+    // these switches; the switches are the source of truth.
+    @Published var preventSystemSleep = true
+    @Published var preventIdleSystemSleep = true
+    @Published var keepDisplayAwake = false
+    @Published var vetoIdleSleepRequests = true
+    @Published var useGlobalSleepDisable = false
+    @Published var useKernelLidGuard = false
+    @Published var darkenBuiltinDisplayOnLidClose = false
+    @Published var enableBatterySafety = true
+    @Published var enableThermalSafety = true
 
     // MARK: - Runtime state
 
@@ -34,12 +45,13 @@ final class VigilManager: ObservableObject {
     @Published private(set) var backlightDimmed = false
     @Published private(set) var displayStatus = "Idle"
 
-    // MARK: - Safety state
+    // MARK: - Safety / diagnostics state
 
     @Published private(set) var batteryPercent: Int?
     @Published private(set) var onBatteryPower = false
     @Published private(set) var thermalStatus = "Nominal"
     @Published private(set) var lastSleepVetoAt: Date?
+    @Published private(set) var lastSystemWillSleepAt: Date?
     @Published private(set) var lastSystemWakeAt: Date?
 
     private let ownershipKey = "MacVigil.ownsSleepDisabled"
@@ -62,10 +74,95 @@ final class VigilManager: ObservableObject {
 
     private var wakeObserver: NSObjectProtocol?
     private var vetoObserver: NSObjectProtocol?
+    private var willSleepObserver: NSObjectProtocol?
 
     private var watchdogTokenPath: String?
     private var watchdogBrightnessPath: String?
     private var watchdogProcess: Process?
+
+    private var runtimeEvents: [String] = []
+
+    // MARK: - Configuration helpers
+
+    var closedLidProtectionRequested: Bool {
+        useGlobalSleepDisable || useKernelLidGuard
+    }
+
+    var configurationName: String {
+        if preventSystemSleep,
+           preventIdleSystemSleep,
+           !keepDisplayAwake,
+           vetoIdleSleepRequests,
+           !useGlobalSleepDisable,
+           !useKernelLidGuard,
+           !darkenBuiltinDisplayOnLidClose {
+            return RuntimeProfile.computeGuard.title
+        }
+
+        if preventSystemSleep,
+           preventIdleSystemSleep,
+           !keepDisplayAwake,
+           vetoIdleSleepRequests,
+           useGlobalSleepDisable,
+           useKernelLidGuard,
+           darkenBuiltinDisplayOnLidClose {
+            return RuntimeProfile.closedLidEco.title
+        }
+
+        if preventSystemSleep,
+           preventIdleSystemSleep,
+           keepDisplayAwake,
+           vetoIdleSleepRequests,
+           !useGlobalSleepDisable,
+           !useKernelLidGuard,
+           !darkenBuiltinDisplayOnLidClose {
+            return RuntimeProfile.fullAwake.title
+        }
+
+        return "Custom Vigil"
+    }
+
+    var authorizationStatusText: String {
+        if authorizationInstalled {
+            return "MacVigil authorization installed"
+        }
+        if pmsetPrivilegeAvailable {
+            return "Compatible pmset authorization available"
+        }
+        return "Authorization required for Global SleepDisabled"
+    }
+
+    func applyPreset(_ preset: RuntimeProfile) {
+        guard !isActive else { return }
+
+        preventSystemSleep = true
+        preventIdleSystemSleep = true
+        vetoIdleSleepRequests = true
+        enableBatterySafety = true
+        enableThermalSafety = true
+
+        switch preset {
+        case .computeGuard:
+            keepDisplayAwake = false
+            useGlobalSleepDisable = false
+            useKernelLidGuard = false
+            darkenBuiltinDisplayOnLidClose = false
+
+        case .closedLidEco:
+            keepDisplayAwake = false
+            useGlobalSleepDisable = true
+            useKernelLidGuard = true
+            darkenBuiltinDisplayOnLidClose = true
+
+        case .fullAwake:
+            keepDisplayAwake = true
+            useGlobalSleepDisable = false
+            useKernelLidGuard = false
+            darkenBuiltinDisplayOnLidClose = false
+        }
+
+        statusMessage = "Applied \(preset.title) preset. You can still change any switch before starting."
+    }
 
     // MARK: - Lifecycle
 
@@ -79,8 +176,10 @@ final class VigilManager: ObservableObject {
         await refreshSleepDisabledState()
         await refreshBatteryState()
         refreshThermalState()
+        recordEvent("app prepared")
 
-        // Only recover a global setting that MacVigil explicitly marked as its own.
+        // Recover only a global pmset setting that MacVigil explicitly marked
+        // as its own. Never disable another utility's pre-existing setting.
         if UserDefaults.standard.bool(forKey: ownershipKey) {
             _ = lidGuard.setArmed(false)
             kernelGuardActive = false
@@ -89,12 +188,15 @@ final class VigilManager: ObservableObject {
             if sleepDisabledReadback, pmsetPrivilegeAvailable {
                 if await setGlobalSleepDisabled(false) {
                     UserDefaults.standard.set(false, forKey: ownershipKey)
+                    ownsSleepDisabled = false
                     statusMessage = "Recovered normal sleep after an interrupted MacVigil session."
+                    recordEvent("recovered stale SleepDisabled=1 from previous session")
                 } else {
                     lastError = "A previous MacVigil session may still have SleepDisabled enabled. Run: sudo pmset -a disablesleep 0"
                 }
             } else if !sleepDisabledReadback {
                 UserDefaults.standard.set(false, forKey: ownershipKey)
+                ownsSleepDisabled = false
             }
         }
     }
@@ -104,30 +206,50 @@ final class VigilManager: ObservableObject {
         lastError = nil
         statusMessage = nil
 
-        if profile.requiresClosedLidGuard {
+        let hasProtection = preventSystemSleep
+            || preventIdleSystemSleep
+            || keepDisplayAwake
+            || vetoIdleSleepRequests
+            || useGlobalSleepDisable
+            || useKernelLidGuard
+
+        guard hasProtection else {
+            lastError = "Turn on at least one protection switch before starting Vigil."
+            return
+        }
+
+        if useGlobalSleepDisable {
             await refreshAuthorizationStatus()
             guard pmsetPrivilegeAvailable else {
                 lastError = authorizationInstalled
-                    ? "MacVigil's lid authorization exists, but sudo is not accepting the required pmset commands."
-                    : "Install Closed-Lid Authorization before starting Closed-Lid Eco."
+                    ? "MacVigil's authorization exists, but sudo is not accepting the two required pmset commands."
+                    : "Global SleepDisabled needs authorization. Install it in the Closed-lid section or turn that switch off."
                 return
             }
         }
 
         let reason = "MacVigil runtime protection enabled by user"
-        let assertionResult = assertions.start(keepDisplayAwake: profile.keepsDisplayAwake, reason: reason)
+        let assertionResult = assertions.start(
+            preventSystemSleep: preventSystemSleep,
+            preventIdleSystemSleep: preventIdleSystemSleep,
+            keepDisplayAwake: keepDisplayAwake,
+            reason: reason
+        )
         guard assertionResult == kIOReturnSuccess else {
-            lastError = "Could not create macOS power assertions (IOKit error \(assertionResult))."
+            lastError = "Could not create the selected macOS power assertions (IOKit error \(assertionResult))."
             return
         }
 
-        var activityOptions: ProcessInfo.ActivityOptions = [.userInitiated, .idleSystemSleepDisabled]
-        if profile.keepsDisplayAwake { activityOptions.insert(.idleDisplaySleepDisabled) }
+        var activityOptions: ProcessInfo.ActivityOptions = [.userInitiated]
+        if preventIdleSystemSleep { activityOptions.insert(.idleSystemSleepDisabled) }
+        if keepDisplayAwake { activityOptions.insert(.idleDisplaySleepDisabled) }
         activityToken = ProcessInfo.processInfo.beginActivity(options: activityOptions, reason: reason)
-        systemPowerVeto.setEnabled(true)
-        isActive = true
 
-        if profile.requiresClosedLidGuard {
+        systemPowerVeto.setEnabled(vetoIdleSleepRequests)
+        isActive = true
+        recordEvent("session started: \(configurationName)")
+
+        if closedLidProtectionRequested {
             guard await armClosedLidMode() else {
                 stopCore()
                 return
@@ -136,7 +258,7 @@ final class VigilManager: ObservableObject {
 
         configureDurationTimer()
         startSafetyTimer()
-        statusMessage = "\(profile.title) is active."
+        statusMessage = "\(configurationName) is active."
     }
 
     func stopSession() async {
@@ -145,6 +267,7 @@ final class VigilManager: ObservableObject {
             || ownsSleepDisabled
             || UserDefaults.standard.bool(forKey: ownershipKey)
 
+        recordEvent("session stop requested")
         stopCore()
         if shouldDisarmLid {
             await disarmClosedLidMode()
@@ -153,16 +276,17 @@ final class VigilManager: ObservableObject {
     }
 
     func handleAppTermination() {
-        // The companion watchdog performs privileged cleanup after the GUI exits.
-        // Release in-process state immediately and invalidate its heartbeat token.
+        recordEvent("application terminating")
         systemPowerVeto.setEnabled(false)
         assertions.stop()
+
         if let activityToken {
             ProcessInfo.processInfo.endActivity(activityToken)
             self.activityToken = nil
         }
-        removeWatchdogToken()
+
         backlight.restoreBuiltinDisplay(from: watchdogBrightnessPath)
+        removeWatchdogToken()
         _ = lidGuard.setArmed(false)
         kernelGuardActive = false
     }
@@ -189,6 +313,7 @@ final class VigilManager: ObservableObject {
 
         if result.succeeded && authorizationInstalled && pmsetPrivilegeAvailable {
             statusMessage = "Closed-lid authorization installed. It permits only pmset disablesleep 1 and 0."
+            recordEvent("MacVigil sudoers authorization installed")
         } else if result.succeeded && authorizationInstalled {
             lastError = "The authorization file was installed, but sudo did not make the two exact pmset commands available."
         } else {
@@ -208,7 +333,10 @@ final class VigilManager: ObservableObject {
         await refreshAuthorizationStatus()
 
         if result.succeeded && !authorizationInstalled {
-            statusMessage = "MacVigil closed-lid authorization removed."
+            statusMessage = pmsetPrivilegeAvailable
+                ? "MacVigil authorization removed. Another compatible sudoers rule still provides pmset access."
+                : "MacVigil closed-lid authorization removed."
+            recordEvent("MacVigil sudoers authorization removed")
         } else {
             lastError = "Could not remove MacVigil's authorization. \(ShellRunner.cleanError(result))"
         }
@@ -222,52 +350,94 @@ final class VigilManager: ObservableObject {
         pmsetPrivilegeAvailable = enable.succeeded && disable.succeeded
     }
 
-    // MARK: - Closed-lid mode
+    // MARK: - Closed-lid protection
 
     private func armClosedLidMode() async -> Bool {
-        await refreshSleepDisabledState()
         var enabledPMSetThisTime = false
 
-        if sleepDisabledReadback {
-            ownsSleepDisabled = UserDefaults.standard.bool(forKey: ownershipKey)
-        } else {
-            guard await setGlobalSleepDisabled(true) else { return false }
-            ownsSleepDisabled = true
-            enabledPMSetThisTime = true
-            UserDefaults.standard.set(true, forKey: ownershipKey)
+        if useGlobalSleepDisable {
+            await refreshSleepDisabledState()
+            if sleepDisabledReadback {
+                ownsSleepDisabled = UserDefaults.standard.bool(forKey: ownershipKey)
+                recordEvent("Global SleepDisabled already active before MacVigil arm")
+            } else {
+                guard await setGlobalSleepDisabled(true) else { return false }
+                ownsSleepDisabled = true
+                enabledPMSetThisTime = true
+                UserDefaults.standard.set(true, forKey: ownershipKey)
+                recordEvent("Global SleepDisabled=1 armed and verified")
+            }
         }
 
-        guard lidGuard.setArmed(true) else {
-            kernelGuardStatus = lidGuard.lastStatus
-            kernelGuardActive = false
-            if enabledPMSetThisTime {
-                _ = await setGlobalSleepDisabled(false)
-                ownsSleepDisabled = false
-                UserDefaults.standard.set(false, forKey: ownershipKey)
+        if useKernelLidGuard {
+            guard lidGuard.setArmed(true) else {
+                kernelGuardStatus = lidGuard.lastStatus
+                kernelGuardActive = false
+                if enabledPMSetThisTime {
+                    _ = await setGlobalSleepDisabled(false)
+                    ownsSleepDisabled = false
+                    UserDefaults.standard.set(false, forKey: ownershipKey)
+                }
+                lastError = "The macOS kernel rejected the experimental clamshell guard. Closed-lid protection was not armed."
+                recordEvent("kernel clamshell guard rejected: \(lidGuard.lastStatus)")
+                return false
             }
-            lastError = "The macOS kernel rejected the experimental clamshell guard. Closed-Lid Eco was not armed."
-            return false
+            kernelGuardActive = true
+            kernelGuardStatus = lidGuard.lastStatus
+            recordEvent("kernel clamshell guard armed: \(lidGuard.lastStatus)")
+        } else {
+            kernelGuardActive = false
+            kernelGuardStatus = "disabled by user"
         }
 
         lidModeActive = true
-        kernelGuardActive = true
-        kernelGuardStatus = lidGuard.lastStatus
-        installWatchdog()
+
+        guard installWatchdog() else {
+            lastError = lastError ?? "Closed-lid protection requires its crash-recovery watchdog, but the watchdog could not start."
+            await rollbackFailedClosedLidArm(enabledPMSetThisTime: enabledPMSetThisTime)
+            return false
+        }
+
         startLidMonitor()
         startKernelHeartbeat()
         refreshLocalHardwareState(forceDisplayAction: true)
         await refreshBatteryState()
+        await refreshSleepDisabledState()
 
-        if onBatteryPower, let batteryPercent, batteryPercent <= max(5, lowBatteryCutoff) {
-            lastError = "Closed-Lid Eco was stopped because the battery is already at the configured safety reserve."
+        if enableBatterySafety,
+           onBatteryPower,
+           let batteryPercent,
+           batteryPercent <= max(5, lowBatteryCutoff) {
+            lastError = "Closed-lid protection was stopped because the battery is already at the configured reserve."
             await disarmClosedLidMode()
             return false
         }
 
+        recordEvent(
+            "closed-lid protection ready: SleepDisabled=\(sleepDisabledReadback), kernel=\(kernelGuardActive), AppleClamshellCausesSleep=\(appleClamshellCausesSleep.map(String.init) ?? "unknown")"
+        )
         return true
     }
 
+    private func rollbackFailedClosedLidArm(enabledPMSetThisTime: Bool) async {
+        lidModeActive = false
+        stopLidMonitor()
+        stopKernelHeartbeat()
+        removeWatchdogToken()
+        backlight.restoreBuiltinDisplay(from: watchdogBrightnessPath)
+        _ = lidGuard.setArmed(false)
+        kernelGuardActive = false
+        kernelGuardStatus = lidGuard.lastStatus
+
+        if enabledPMSetThisTime {
+            _ = await setGlobalSleepDisabled(false)
+            ownsSleepDisabled = false
+            UserDefaults.standard.set(false, forKey: ownershipKey)
+        }
+    }
+
     private func disarmClosedLidMode() async {
+        recordEvent("disarming closed-lid protection")
         lidModeActive = false
         stopLidMonitor()
         stopKernelHeartbeat()
@@ -285,6 +455,7 @@ final class VigilManager: ObservableObject {
             if await setGlobalSleepDisabled(false) {
                 ownsSleepDisabled = false
                 UserDefaults.standard.set(false, forKey: ownershipKey)
+                recordEvent("Global SleepDisabled=0 restored")
             } else {
                 lastError = "Could not restore SleepDisabled=0. Run: sudo pmset -a disablesleep 0"
             }
@@ -293,6 +464,31 @@ final class VigilManager: ObservableObject {
         }
 
         lidGuard.close()
+    }
+
+    private func reinforceClosedLidProtection(source: String) async {
+        guard isActive, lidModeActive else { return }
+
+        if useKernelLidGuard {
+            _ = lidGuard.setArmed(true)
+            kernelGuardActive = lidGuard.isArmed
+            kernelGuardStatus = lidGuard.lastStatus
+        }
+
+        if useGlobalSleepDisable {
+            await refreshSleepDisabledState()
+            if !sleepDisabledReadback {
+                if await setGlobalSleepDisabled(true) {
+                    ownsSleepDisabled = true
+                    UserDefaults.standard.set(true, forKey: ownershipKey)
+                    recordEvent("\(source): SleepDisabled had dropped; re-armed to 1")
+                } else {
+                    recordEvent("\(source): FAILED to re-arm SleepDisabled")
+                }
+            }
+        }
+
+        touchWatchdogToken()
     }
 
     private func setGlobalSleepDisabled(_ enabled: Bool) async -> Bool {
@@ -313,16 +509,16 @@ final class VigilManager: ObservableObject {
         sleepDisabledReadback = parseSleepDisabled(result.stdout)
     }
 
-    // MARK: - Lid/display monitoring
+    // MARK: - Lid / display monitoring
 
     private func startLidMonitor() {
         lidMonitorTimer?.invalidate()
-        lidMonitorTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        lidMonitorTimer = Timer.scheduledTimer(withTimeInterval: 0.20, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.refreshLocalHardwareState(forceDisplayAction: false)
             }
         }
-        lidMonitorTimer?.tolerance = 0.05
+        lidMonitorTimer?.tolerance = 0.03
     }
 
     private func stopLidMonitor() {
@@ -332,15 +528,13 @@ final class VigilManager: ObservableObject {
 
     private func startKernelHeartbeat() {
         kernelHeartbeatTimer?.invalidate()
-        kernelHeartbeatTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        kernelHeartbeatTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self, self.lidModeActive else { return }
-                _ = self.lidGuard.setArmed(true)
-                self.kernelGuardActive = self.lidGuard.isArmed
-                self.kernelGuardStatus = self.lidGuard.lastStatus
-                self.touchWatchdogToken()
+                guard let self else { return }
+                await self.reinforceClosedLidProtection(source: "heartbeat")
             }
         }
+        kernelHeartbeatTimer?.tolerance = 0.25
     }
 
     private func stopKernelHeartbeat() {
@@ -363,9 +557,14 @@ final class VigilManager: ObservableObject {
         let changedToOpen = !lidIsClosed && wasClosed
 
         if changedToClosed {
-            _ = lidGuard.setArmed(true)
-            kernelGuardActive = lidGuard.isArmed
-            kernelGuardStatus = lidGuard.lastStatus
+            recordEvent("physical lid closed")
+            // Re-assert both layers immediately on the physical edge. This is
+            // intentionally in addition to the periodic heartbeat/watchdog.
+            Task { @MainActor [weak self] in
+                await self?.reinforceClosedLidProtection(source: "lid-close edge")
+            }
+        } else if changedToOpen {
+            recordEvent("physical lid opened")
         }
 
         if changedToOpen || !lidIsClosed {
@@ -378,6 +577,13 @@ final class VigilManager: ObservableObject {
         if hasExternalDisplay {
             backlight.restoreBuiltinDisplay(from: watchdogBrightnessPath)
             displayStatus = "Lid closed · external display detected; built-in backlight override skipped."
+            syncDisplayPublishedState()
+            return
+        }
+
+        guard darkenBuiltinDisplayOnLidClose else {
+            backlight.restoreBuiltinDisplay(from: watchdogBrightnessPath)
+            displayStatus = "Lid closed · built-in backlight control disabled by user."
             syncDisplayPublishedState()
             return
         }
@@ -418,42 +624,36 @@ final class VigilManager: ObservableObject {
 
     private func startSafetyTimer() {
         safetyTimer?.invalidate()
-        safetyTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+        safetyTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.isActive else { return }
 
                 await self.refreshBatteryState()
                 self.refreshThermalState()
 
-                if self.lidModeActive {
-                    await self.refreshSleepDisabledState()
-                    _ = self.lidGuard.setArmed(true)
-                    self.kernelGuardActive = self.lidGuard.isArmed
-                    self.kernelGuardStatus = self.lidGuard.lastStatus
+                if self.enableBatterySafety,
+                   self.lidModeActive,
+                   self.onBatteryPower,
+                   let batteryPercent = self.batteryPercent,
+                   batteryPercent <= max(5, self.lowBatteryCutoff) {
+                    let message = "Closed-lid protection stopped at \(batteryPercent)% to preserve the configured battery reserve."
+                    self.recordEvent("battery safety stop at \(batteryPercent)%")
+                    await self.stopSession()
+                    self.lastError = message
+                    return
+                }
 
-                    if self.ownsSleepDisabled && !self.sleepDisabledReadback {
-                        _ = await self.setGlobalSleepDisabled(true)
-                    }
-
-                    self.refreshLocalHardwareState(forceDisplayAction: false)
-
-                    if self.onBatteryPower,
-                       let batteryPercent = self.batteryPercent,
-                       batteryPercent <= max(5, self.lowBatteryCutoff) {
-                        let message = "Closed-Lid Eco stopped at \(batteryPercent)% to preserve the configured battery reserve."
-                        await self.stopSession()
-                        self.lastError = message
-                        return
-                    }
-
-                    if ProcessInfo.processInfo.thermalState == .critical {
-                        let message = "Closed-Lid Eco stopped because macOS reports critical thermal pressure."
-                        await self.stopSession()
-                        self.lastError = message
-                    }
+                if self.enableThermalSafety,
+                   self.lidModeActive,
+                   ProcessInfo.processInfo.thermalState == .critical {
+                    let message = "Closed-lid protection stopped because macOS reports critical thermal pressure."
+                    self.recordEvent("critical thermal safety stop")
+                    await self.stopSession()
+                    self.lastError = message
                 }
             }
         }
+        safetyTimer?.tolerance = 1
     }
 
     // MARK: - Session timing
@@ -476,7 +676,9 @@ final class VigilManager: ObservableObject {
 
         endTimer = Timer.scheduledTimer(withTimeInterval: safeInterval, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
-                await self?.stopSession()
+                guard let self else { return }
+                self.recordEvent("duration timer expired")
+                await self.stopSession()
             }
         }
 
@@ -510,7 +712,8 @@ final class VigilManager: ObservableObject {
 
     // MARK: - Watchdog
 
-    private func installWatchdog() {
+    @discardableResult
+    private func installWatchdog() -> Bool {
         removeWatchdogToken()
 
         let cacheDirectory = FileManager.default.homeDirectoryForCurrentUser
@@ -529,14 +732,14 @@ final class VigilManager: ObservableObject {
             watchdogBrightnessPath = brightnessURL.path
 
             guard let executableDirectory = Bundle.main.executableURL?.deletingLastPathComponent() else {
-                lastError = "Closed-Lid Eco is active, but the watchdog executable directory could not be found."
-                return
+                lastError = "Closed-lid protection is active, but the watchdog executable directory could not be found."
+                return false
             }
 
             let helperURL = executableDirectory.appendingPathComponent("MacVigilWatchdog")
             guard FileManager.default.isExecutableFile(atPath: helperURL.path) else {
-                lastError = "Closed-Lid Eco is active, but MacVigilWatchdog is missing from this build."
-                return
+                lastError = "MacVigilWatchdog is missing from this build. Closed-lid protection was not started."
+                return false
             }
 
             let process = Process()
@@ -547,15 +750,19 @@ final class VigilManager: ObservableObject {
                 token,
                 brightnessURL.path,
                 "\(backlight.builtinDisplayIdentifier())",
-                ownsSleepDisabled ? "1" : "0"
+                ownsSleepDisabled ? "1" : "0",
+                useKernelLidGuard ? "1" : "0"
             ]
             process.standardInput = FileHandle.nullDevice
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
             try process.run()
             watchdogProcess = process
+            recordEvent("crash watchdog started pid=\(process.processIdentifier)")
+            return true
         } catch {
-            lastError = "Closed-Lid Eco is active, but its crash watchdog could not start: \(error.localizedDescription)"
+            lastError = "Closed-lid protection could not start its crash watchdog: \(error.localizedDescription)"
+            return false
         }
     }
 
@@ -573,6 +780,8 @@ final class VigilManager: ObservableObject {
     // MARK: - System power notifications
 
     private func installPowerNotifications() {
+        guard wakeObserver == nil, vetoObserver == nil, willSleepObserver == nil else { return }
+
         wakeObserver = NotificationCenter.default.addObserver(
             forName: .macVigilSystemPoweredOn,
             object: nil,
@@ -581,15 +790,9 @@ final class VigilManager: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.lastSystemWakeAt = Date()
+                self.recordEvent("IOKit system powered-on notification")
                 guard self.isActive, self.lidModeActive else { return }
-
-                _ = self.lidGuard.setArmed(true)
-                self.kernelGuardActive = self.lidGuard.isArmed
-                self.kernelGuardStatus = self.lidGuard.lastStatus
-                await self.refreshSleepDisabledState()
-                if self.ownsSleepDisabled && !self.sleepDisabledReadback {
-                    _ = await self.setGlobalSleepDisabled(true)
-                }
+                await self.reinforceClosedLidProtection(source: "system wake")
                 self.refreshLocalHardwareState(forceDisplayAction: true)
             }
         }
@@ -600,7 +803,21 @@ final class VigilManager: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.lastSleepVetoAt = Date()
+                guard let self else { return }
+                self.lastSleepVetoAt = Date()
+                self.recordEvent("idle system-sleep request vetoed")
+            }
+        }
+
+        willSleepObserver = NotificationCenter.default.addObserver(
+            forName: .macVigilSystemWillSleep,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.lastSystemWillSleepAt = Date()
+                self.recordEvent("SYSTEM WILL SLEEP notification received")
             }
         }
     }
@@ -615,26 +832,40 @@ final class VigilManager: ObservableObject {
         refreshLocalHardwareState(forceDisplayAction: false)
 
         async let pmset = ShellRunner.run("/usr/bin/pmset", ["-g"])
-        async let assertions = ShellRunner.run("/usr/bin/pmset", ["-g", "assertions"])
+        async let assertionsOutput = ShellRunner.run("/usr/bin/pmset", ["-g", "assertions"])
         async let battery = ShellRunner.run("/usr/bin/pmset", ["-g", "batt"])
         async let clamshell = ShellRunner.run("/usr/sbin/ioreg", ["-r", "-k", "AppleClamshellState", "-d", "4"])
-        async let sleepLog = ShellRunner.run("/bin/sh", ["-c", "/usr/bin/pmset -g log | /usr/bin/tail -n 80"])
+        async let sleepLog = ShellRunner.run("/bin/sh", ["-c", "/usr/bin/pmset -g log | /usr/bin/tail -n 120"])
 
         let (pmsetResult, assertionsResult, batteryResult, clamshellResult, sleepLogResult) = await (
-            pmset, assertions, battery, clamshell, sleepLog
+            pmset, assertionsOutput, battery, clamshell, sleepLog
         )
 
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
         let batteryText = batteryPercent.map(String.init) ?? "unknown"
         let clamshellSleepText = appleClamshellCausesSleep.map { $0 ? "true" : "false" } ?? "unknown"
         let kernelReturn = String(format: "0x%08x", UInt32(bitPattern: lidGuard.lastReturn))
+        let events = runtimeEvents.isEmpty ? "none" : runtimeEvents.joined(separator: "\n")
 
         return """
         MacVigil diagnostics
         Version: \(version)
         Session active: \(isActive)
-        Runtime profile: \(profile.title)
-        Authorization installed: \(authorizationInstalled)
+        Configuration: \(configurationName)
+
+        --- user switches ---
+        Prevent system sleep: \(preventSystemSleep)
+        Prevent idle system sleep: \(preventIdleSystemSleep)
+        Keep display awake: \(keepDisplayAwake)
+        Veto idle sleep requests: \(vetoIdleSleepRequests)
+        Global SleepDisabled: \(useGlobalSleepDisable)
+        Kernel clamshell guard: \(useKernelLidGuard)
+        Darken built-in display on lid close: \(darkenBuiltinDisplayOnLidClose)
+        Battery reserve safety: \(enableBatterySafety)
+        Critical thermal safety: \(enableThermalSafety)
+
+        --- live state ---
+        MacVigil authorization installed: \(authorizationInstalled)
         pmset privilege available: \(pmsetPrivilegeAvailable)
         Closed-lid mode active: \(lidModeActive)
         Physical lid closed: \(lidIsClosed)
@@ -651,7 +882,11 @@ final class VigilManager: ObservableObject {
         Battery reserve: \(lowBatteryCutoff)%
         Thermal pressure: \(thermalStatus)
         Last idle-sleep veto: \(timestamp(lastSleepVetoAt))
-        Last system wake notification: \(timestamp(lastSystemWakeAt))
+        Last SYSTEM WILL SLEEP: \(timestamp(lastSystemWillSleepAt))
+        Last system powered-on: \(timestamp(lastSystemWakeAt))
+
+        --- MacVigil runtime event trail ---
+        \(events)
 
         --- pmset -g ---
         \(pmsetResult.stdout)
@@ -669,7 +904,7 @@ final class VigilManager: ObservableObject {
         \(clamshellResult.stdout)
         \(clamshellResult.stderr)
 
-        --- recent pmset sleep/wake log (last 80 lines) ---
+        --- recent pmset sleep/wake log (last 120 lines) ---
         \(sleepLogResult.stdout)
         \(sleepLogResult.stderr)
         """
@@ -685,6 +920,14 @@ final class VigilManager: ObservableObject {
             }
         }
         return false
+    }
+
+    private func recordEvent(_ message: String) {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        runtimeEvents.append("\(stamp)  \(message)")
+        if runtimeEvents.count > 50 {
+            runtimeEvents.removeFirst(runtimeEvents.count - 50)
+        }
     }
 
     private func timestamp(_ date: Date?) -> String {
@@ -703,6 +946,7 @@ final class VigilManager: ObservableObject {
 
         if let wakeObserver { NotificationCenter.default.removeObserver(wakeObserver) }
         if let vetoObserver { NotificationCenter.default.removeObserver(vetoObserver) }
+        if let willSleepObserver { NotificationCenter.default.removeObserver(willSleepObserver) }
         if let activityToken { ProcessInfo.processInfo.endActivity(activityToken) }
     }
 }
