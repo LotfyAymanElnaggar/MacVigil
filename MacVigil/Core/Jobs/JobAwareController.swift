@@ -4,6 +4,48 @@ import Darwin
 
 @MainActor
 final class JobAwareController: ObservableObject {
+    enum WorkloadKind: String, CaseIterable {
+        case aiAgent
+        case localAI
+        case build
+        case containers
+        case devServer
+        case transfer
+
+        var title: String {
+            switch self {
+            case .aiAgent: return "AI agent"
+            case .localAI: return "Local AI"
+            case .build: return "Build / test"
+            case .containers: return "Containers"
+            case .devServer: return "Dev server"
+            case .transfer: return "Transfer"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .aiAgent: return "sparkles"
+            case .localAI: return "brain.head.profile"
+            case .build: return "hammer"
+            case .containers: return "shippingbox"
+            case .devServer: return "network"
+            case .transfer: return "arrow.left.arrow.right"
+            }
+        }
+
+        var sortPriority: Int {
+            switch self {
+            case .aiAgent: return 0
+            case .localAI: return 1
+            case .build: return 2
+            case .containers: return 3
+            case .devServer: return 4
+            case .transfer: return 5
+            }
+        }
+    }
+
     struct ProcessCandidate: Identifiable {
         let pid: Int32
         let name: String
@@ -11,6 +53,7 @@ final class JobAwareController: ObservableObject {
         let cpuPercent: Double
         let icon: NSImage?
         let isApplication: Bool
+        let workloadKind: WorkloadKind?
 
         var id: Int32 { pid }
         var cpuText: String {
@@ -75,8 +118,29 @@ final class JobAwareController: ObservableObject {
         return processes.filter {
             $0.name.lowercased().contains(query) ||
             $0.path.lowercased().contains(query) ||
+            $0.workloadKind?.title.lowercased().contains(query) == true ||
             String($0.pid).contains(query)
         }
+    }
+
+    var suggestedProcesses: [ProcessCandidate] {
+        processes
+            .filter { $0.workloadKind != nil }
+            .sorted { lhs, rhs in
+                let leftPriority = lhs.workloadKind?.sortPriority ?? Int.max
+                let rightPriority = rhs.workloadKind?.sortPriority ?? Int.max
+                if leftPriority != rightPriority { return leftPriority < rightPriority }
+                if abs(lhs.cpuPercent - rhs.cpuPercent) > 0.05 { return lhs.cpuPercent > rhs.cpuPercent }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
+    var detectedWorkloadCount: Int { suggestedProcesses.count }
+
+    var detectionSummary: String {
+        let count = detectedWorkloadCount
+        if count == 0 { return "No obvious developer workloads detected right now." }
+        return count == 1 ? "1 likely workload detected." : "\(count) likely workloads detected."
     }
 
     func refreshProcesses() async {
@@ -110,14 +174,16 @@ final class JobAwareController: ObservableObject {
                 let fallbackName = URL(fileURLWithPath: path).lastPathComponent
                 let name = app?.localizedName?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let resolvedName = (name?.isEmpty == false ? name! : fallbackName)
+                let displayName = resolvedName.isEmpty ? "Process \(pid)" : resolvedName
 
                 candidates.append(ProcessCandidate(
                     pid: pid,
-                    name: resolvedName.isEmpty ? "Process \(pid)" : resolvedName,
+                    name: displayName,
                     path: path,
                     cpuPercent: cpu,
                     icon: app?.icon,
-                    isApplication: app != nil
+                    isApplication: app != nil,
+                    workloadKind: Self.detectWorkload(name: displayName, path: path, cpuPercent: cpu)
                 ))
                 seen.insert(pid)
             }
@@ -128,13 +194,15 @@ final class JobAwareController: ObservableObject {
             let pid = app.processIdentifier
             guard !seen.contains(pid) else { continue }
             let name = app.localizedName ?? app.bundleIdentifier ?? "Process \(pid)"
+            let path = app.bundleURL?.path ?? app.executableURL?.path ?? ""
             candidates.append(ProcessCandidate(
                 pid: pid,
                 name: name,
-                path: app.bundleURL?.path ?? app.executableURL?.path ?? "",
+                path: path,
                 cpuPercent: 0,
                 icon: app.icon,
-                isApplication: true
+                isApplication: true,
+                workloadKind: Self.detectWorkload(name: name, path: path, cpuPercent: 0)
             ))
             seen.insert(pid)
         }
@@ -412,6 +480,53 @@ final class JobAwareController: ObservableObject {
     private static func processExists(_ pid: Int32) -> Bool {
         if kill(pid, 0) == 0 { return true }
         return errno == EPERM
+    }
+
+    private static func detectWorkload(name: String, path: String, cpuPercent: Double) -> WorkloadKind? {
+        let nameValue = name.lowercased()
+        let combined = "\(name) \(path)".lowercased()
+
+        if containsAny(combined, [
+            "claude", "codex", "aider", "opencode", "cline", "roo-code", "continue"
+        ]) {
+            return .aiAgent
+        }
+
+        if containsAny(combined, [
+            "ollama", "lm studio", "lm-studio", "lmstudio", "llama-server", "llama-cli",
+            "mlx_lm", "mlx-lm", "koboldcpp", "localai"
+        ]) {
+            return .localAI
+        }
+
+        if containsAny(combined, [
+            "xcodebuild", "swiftc", "cargo", "rustc", "gradle", "gradlew", "mvn", "ninja", "cmake"
+        ]) || ["make"].contains(nameValue) {
+            return .build
+        }
+
+        if containsAny(combined, [
+            "docker", "com.docker", "colima", "podman", "containerd", "orbstack", "lima"
+        ]) {
+            return .containers
+        }
+
+        if containsAny(combined, [
+            "uvicorn", "gunicorn", "jupyter", "vite", "next-server", "webpack", "redis-server",
+            "postgres", "mongod"
+        ]) || ["bun", "deno"].contains(nameValue) || (nameValue == "node" && cpuPercent >= 0.2) {
+            return .devServer
+        }
+
+        if containsAny(combined, ["rsync", "rclone"]) || ["scp", "sftp"].contains(nameValue) {
+            return .transfer
+        }
+
+        return nil
+    }
+
+    private static func containsAny(_ value: String, _ patterns: [String]) -> Bool {
+        patterns.contains { value.contains($0) }
     }
 
     private static func durationText(_ seconds: Int) -> String {
