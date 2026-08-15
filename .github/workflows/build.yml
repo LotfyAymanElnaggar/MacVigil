@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
 
     steps:
       - name: Checkout
@@ -127,7 +127,7 @@ jobs:
           xcrun lipo -archs "$MACOS_DIR/MacVigil" | grep -q x86_64
           xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q arm64
           xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q x86_64
-          echo "Universal binaries, hotkeys, statistics, and app icon confirmed."
+          echo "Universal binaries, native Liquid Glass availability, hotkeys, statistics, and app icon confirmed."
 
       - name: Create DMG
         shell: bash
