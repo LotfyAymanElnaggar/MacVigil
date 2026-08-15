@@ -5,6 +5,7 @@ import UserNotifications
 final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     weak var manager: VigilManager?
     weak var updater: UpdateManager?
+    weak var jobs: JobAwareController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
@@ -19,6 +20,10 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
             updater.startBackgroundMonitoring(isVigilActive: { [weak manager] in
                 manager?.isActive ?? false
             })
+
+            // Build the first local Job Guard suggestion set without waiting
+            // for the menu or Job Guard window to be opened.
+            await self.jobs?.refreshProcesses()
         }
     }
 
@@ -57,13 +62,15 @@ struct MacVigilApp: App {
     init() {
         let manager = VigilManager()
         let updater = UpdateManager()
+        let jobs = JobAwareController(manager: manager)
 
         _manager = StateObject(wrappedValue: manager)
         _updater = StateObject(wrappedValue: updater)
-        _jobs = StateObject(wrappedValue: JobAwareController(manager: manager))
+        _jobs = StateObject(wrappedValue: jobs)
 
         appDelegate.manager = manager
         appDelegate.updater = updater
+        appDelegate.jobs = jobs
     }
 
     var body: some Scene {
@@ -72,6 +79,7 @@ struct MacVigilApp: App {
                 .onAppear {
                     appDelegate.manager = manager
                     appDelegate.updater = updater
+                    appDelegate.jobs = jobs
                 }
         } label: {
             Image(systemName: updater.hasUpdate ? "arrow.down.circle.fill" : (manager.isActive ? "bolt.shield.fill" : "bolt.shield"))
@@ -84,9 +92,10 @@ struct MacVigilApp: App {
                 .onAppear {
                     appDelegate.manager = manager
                     appDelegate.updater = updater
+                    appDelegate.jobs = jobs
                 }
         }
-        .defaultSize(width: 560, height: 680)
+        .defaultSize(width: 580, height: 680)
         .windowResizability(.contentSize)
     }
 }
