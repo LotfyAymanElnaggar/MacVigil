@@ -21,7 +21,7 @@ struct MacVigilApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarView(manager: manager)
+            LiveMenuBarView(manager: manager)
                 .onAppear {
                     appDelegate.manager = manager
                 }
