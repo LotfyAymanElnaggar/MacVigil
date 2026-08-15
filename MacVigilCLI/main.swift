@@ -87,8 +87,10 @@ private final class CLITransport {
     }
 
     private func bundledAppURL() -> URL? {
-        var url = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
-        for _ in 0..<5 {
+        var url = URL(fileURLWithPath: CommandLine.arguments[0])
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+        for _ in 0..<7 {
             if url.pathExtension == "app" { return url }
             url.deleteLastPathComponent()
         }
@@ -432,11 +434,14 @@ struct MacVigilCLI {
 
     private static func installCLI() -> Never {
         let target = "/usr/local/bin/macvigil"
-        let current = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
-        let installedAppCLI = "/Applications/MacVigil.app/Contents/MacOS/macvigil"
+        let current = URL(fileURLWithPath: CommandLine.arguments[0])
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path
+        let installedAppCLI = "/Applications/MacVigil.app/Contents/Library/Helpers/macvigil"
         let source: String
 
-        if current.hasPrefix("/Applications/MacVigil.app/Contents/MacOS/") {
+        if current == installedAppCLI {
             source = current
         } else if FileManager.default.isExecutableFile(atPath: installedAppCLI) {
             source = installedAppCLI
@@ -467,7 +472,7 @@ struct MacVigilCLI {
             fail("Refusing to remove \(target) because it is not a symbolic link.")
         }
         let normalized = NSString(string: destination).standardizingPath
-        guard normalized.contains("MacVigil.app/Contents/MacOS/macvigil") else {
+        guard normalized.contains("MacVigil.app/Contents/Library/Helpers/macvigil") else {
             fail("Refusing to remove \(target) because it does not point to a MacVigil app bundle.")
         }
 
