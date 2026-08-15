@@ -2,6 +2,26 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.5.0] - 2026-08-15
+
+### Added
+
+- a built-in GitHub release updater with automatic checks, update notifications, manual **Update Now**, and optional automatic installation when no Vigil session is active
+- SHA-256 verification against the GitHub release asset digest before an automatic install is staged
+- a visible update banner and menu-bar update indicator when a newer release is available
+- stronger hover, press, tooltip, and row interaction feedback throughout the menu-bar UI
+
+### Fixed
+
+- changing mode or protection options during an active Vigil now preserves the exact running deadline instead of rounding the remaining time up to a new custom-minute timer
+- the selected mode now has a persistent accent border, accent fill, and checkmark so the current mode is visually unambiguous
+
+### Changed
+
+- mode cards now animate on hover and press
+- advanced option rows now respond visually to pointer hover
+- automatic updates wait until an active Vigil session has ended; a manual update during an active session asks before stopping Vigil and restarting the app
+
 ## [0.4.1] - 2026-08-15
 
 ### Added
