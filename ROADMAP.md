@@ -12,56 +12,68 @@ Legend: ✅ shipped · 🧪 experimental · 🚧 next · 💡 later
 4. **Restore state cleanly.** MacVigil should leave normal macOS behavior behind when Vigil ends.
 5. **Measure before claiming.** Power-efficiency comparisons require repeatable measurements.
 6. **Explain the state.** Users should always be able to see what is protected and why.
+7. **One runtime, many control surfaces.** GUI, hotkeys, and CLI must operate the same Vigil / Job Guard state rather than create competing protection sessions.
 
 ## Shipped foundation
 
 - ✅ native SwiftUI menu-bar app
+- ✅ native macOS Settings-style hierarchy
+- ✅ selective native Liquid Glass controls on macOS 26+
 - ✅ Compute Guard, Closed-Lid Eco, and Full Awake
 - ✅ fixed, custom, and indefinite sessions
+- ✅ human-readable custom duration in hours and minutes
 - ✅ live mode and protection changes without resetting the active timer
 - ✅ independent system, idle, display, lid, battery, and thermal controls
 - ✅ closed-lid crash recovery watchdog
 - ✅ built-in GitHub release checking and verified update flow
 - ✅ background update notifications and optional automatic installation
 - ✅ Launch at Login
-- ✅ curated GitHub release notes per version
-- ✅ Power Intelligence with lightweight recent-session statistics
+- ✅ customizable global hotkeys
+- ✅ curated GitHub release notes and automated changelog synchronization
+- ✅ local Statistics with filters and CSV export
 - ✅ universal Apple Silicon + Intel builds
 - ✅ diagnostics for runtime, lid, display, battery, thermal, and sleep state
 - 🧪 experimental closed-lid kernel guard and built-in display darkening
 
 ## Job Guard
 
-Job-aware protection began in v0.6, became user-friendly in v0.7, and gained smart suggestions in v0.8.
-
-- ✅ choose a running app or process from a searchable native picker
+- ✅ choose running apps or processes from a searchable native picker
 - ✅ show app icon, PID, and CPU activity when available
 - ✅ surface likely long-running workloads as opt-in suggestions
+- ✅ Protect Suggested group action
 - ✅ categorize detected AI, local-model, build, container, server, and transfer workloads
-- ✅ watch an existing PID
-- ✅ release Vigil automatically when the watched process exits
-- ✅ run a non-interactive shell command under Vigil
-- ✅ capture command output to a log
+- ✅ protect multiple processes, commands, and ports in one Job Guard collection
+- ✅ release Vigil only after the final protected item finishes naturally
+- ✅ explicit single-item and Detach All controls that never kill workloads
+- ✅ run non-interactive shell commands under Vigil
+- ✅ selectable working directory for launched commands
+- ✅ capture separate command logs
 - ✅ remember recent commands
-- ✅ show live elapsed time and richer completion/exit details
-- ✅ release Vigil when the launched command exits
-- 🚧 working-directory picker for launched commands
-- 🚧 job-completion notification
-- 🚧 watch multiple related processes as one job
-- 💡 combine multiple process conditions with AND / OR rules
+- ✅ local completion notification when the final protected item finishes
+- ✅ watch TCP listening ports with local `lsof` checks
+- 💡 combine multiple process conditions with explicit AND / OR rules
+- 💡 dedicated Docker container and Compose lifecycle triggers
+- 💡 smarter parent/child process grouping
 
-## CLI and developer workflows
+## CLI and developer automation
 
-- 🚧 `macvigil` command-line tool
-- 🚧 `macvigil run -- npm test`
-- 🚧 `macvigil watch-pid 43127`
-- 🚧 watch a TCP port such as a local dev server
-- 🚧 Docker container and Compose project triggers
+- ✅ universal `macvigil` command-line client bundled with the app
+- ✅ GUI and CLI share one local MacVigil runtime
+- ✅ `macvigil status` and JSON status output
+- ✅ `macvigil start`, `stop`, and `mode`
+- ✅ `macvigil run -- <command>` with terminal stdin/stdout/stderr and child exit status
+- ✅ `macvigil run --cwd ... --env KEY=VALUE -- <command>`
+- ✅ `macvigil watch-pid 43127 44102`
+- ✅ `macvigil watch-port 3000 5173`
+- ✅ `macvigil protect-suggested`
+- ✅ saved local workflows combining ports, commands, cwd, environment, and detected workloads
+- ✅ Settings toolbar install/remove for `/usr/local/bin/macvigil`
+- ✅ app auto-launch attempt when the CLI needs the MacVigil runtime
 - 🚧 shell completion
 - 🚧 Homebrew Cask
 - 💡 Shortcuts support
-- 💡 URL scheme and local API
-- 💡 editor / Raycast integrations
+- 💡 URL scheme / structured local automation endpoint
+- 💡 editor and Raycast integrations
 
 ## AI and local-agent workflows
 
@@ -69,11 +81,25 @@ AI is a first-class use case, not a hard-coded dependency.
 
 - ✅ opt-in detection of common local AI runtimes and agent processes
 - ✅ identify likely AI/build/server workloads from running processes
-- 🚧 Agent Session preset
-- 🚧 Local Model Server preset
+- ✅ add detected workloads to an existing Job Guard collection
+- 🚧 Agent Session saved-workflow template
+- 🚧 Local Model Server saved-workflow template
 - 🚧 smarter grouping of parent/child agent processes
 - 💡 repository indexing / embedding preset
 - 💡 agent completion integration
+
+## Statistics
+
+- ✅ retain up to 200 local session records
+- ✅ 7-day, 30-day, and all-history ranges
+- ✅ protected time, session count, average, and longest session
+- ✅ mode and lifetime-owner breakdown
+- ✅ mode / owner filters
+- ✅ battery delta and peak thermal state when available
+- ✅ local CSV export
+- 🚧 record richer Job Guard member metadata for process / command / port breakdowns
+- 💡 JSON export
+- 💡 compare saved workflows over time
 
 ## Power safety
 
@@ -100,15 +126,20 @@ MacVigil should earn efficiency claims with data.
 
 See [docs/POWER-BENCHMARKS.md](docs/POWER-BENCHMARKS.md).
 
-## Compatibility and distribution
+## v0.15 — reliability and distribution
 
+The next major release track is deliberately less feature-heavy and more about trustworthiness:
+
+- 🚧 deliberate crash-recovery testing
+- 🚧 harden app-termination, lid/wake, update, Job Guard, and CLI race handling
 - 🚧 validate multiple Apple Silicon generations
 - 🚧 validate Intel hardware
 - 🚧 maintain a Mac model × macOS compatibility matrix
-- 🚧 harden lid/wake race handling
-- 🚧 deliberate crash-recovery testing
 - 🚧 Developer ID signing
 - 🚧 Apple notarization
+- 🚧 updater validation against signed/notarized artifacts
+- 🚧 CLI installation/update validation across app upgrades
+- 🚧 Homebrew Cask after signed/notarized distribution is ready
 
 ## 1.0 criteria
 
@@ -118,9 +149,10 @@ MacVigil should not call itself 1.0 until:
 - closed-lid compatibility and unsupported cases are documented
 - crash recovery is deliberately tested
 - battery and thermal safeguards are reliable
+- GUI, hotkeys, Job Guard, and CLI lifetime ownership are deliberately stress-tested
 - power benchmarks are reproducible
 - the app is Developer ID signed and notarized
-- installation, updating, and authorization cleanup are tested and documented
+- installation, updating, CLI installation, and authorization cleanup are tested and documented
 
 ## Not goals
 
@@ -130,4 +162,5 @@ MacVigil will not:
 - silently modify macOS password or Lock Screen policy
 - claim private or undocumented APIs are stable Apple contracts
 - claim lower power usage than another product without reproducible measurements
+- expose a network control server merely to support the local CLI
 - keep the machine awake indefinitely after a known protected job has finished
