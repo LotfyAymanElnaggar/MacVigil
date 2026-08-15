@@ -13,10 +13,62 @@ enum VigilOption {
 }
 
 @MainActor
+private enum LiveSessionContinuity {
+    struct Entry {
+        let deadline: Date
+        let generation: UUID
+    }
+
+    static var entries: [ObjectIdentifier: Entry] = [:]
+
+    static func deadline(for manager: VigilManager) -> Date? {
+        entries[ObjectIdentifier(manager)]?.deadline
+    }
+
+    @discardableResult
+    static func setDeadline(_ deadline: Date, for manager: VigilManager) -> UUID {
+        let generation = UUID()
+        entries[ObjectIdentifier(manager)] = Entry(deadline: deadline, generation: generation)
+        return generation
+    }
+
+    static func clear(for manager: VigilManager) {
+        entries.removeValue(forKey: ObjectIdentifier(manager))
+    }
+
+    static func isCurrent(_ generation: UUID, for manager: VigilManager) -> Bool {
+        entries[ObjectIdentifier(manager)]?.generation == generation
+    }
+}
+
+@MainActor
 extension VigilManager {
-    /// Changes a single protection option while preserving an active session.
-    /// Returns false when the requested transition is unsafe or cannot be
-    /// prepared without interrupting the current protection.
+    /// The user-visible deadline. During a live mode/option handoff this keeps
+    /// the original deadline exact even though the underlying session is
+    /// briefly rebuilt with the new power configuration.
+    var effectiveEndDate: Date? {
+        LiveSessionContinuity.deadline(for: self) ?? endDate
+    }
+
+    var effectiveRemainingSeconds: TimeInterval? {
+        if let deadline = LiveSessionContinuity.deadline(for: self) {
+            return max(0, deadline.timeIntervalSinceNow)
+        }
+        return remainingSeconds
+    }
+
+    func startFreshSession() async {
+        LiveSessionContinuity.clear(for: self)
+        await startSelectedSession()
+    }
+
+    func stopLiveSession() async {
+        LiveSessionContinuity.clear(for: self)
+        await stopSession()
+    }
+
+    /// Changes a single protection option while preserving the exact active
+    /// session deadline.
     func changeOptionLive(_ option: VigilOption, to enabled: Bool) async -> Bool {
         if !isActive {
             setOption(option, to: enabled)
@@ -28,29 +80,21 @@ extension VigilManager {
             return false
         }
 
-        // Preflight privileged closed-lid protection before touching the
-        // currently running session so a failed authorization check never
-        // tears down working protection.
         if option == .useGlobalSleepDisable && enabled {
             await refreshAuthorizationStatus()
             guard pmsetPrivilegeAvailable else { return false }
         }
 
         let snapshot = captureLiveSessionSnapshot()
+        LiveSessionContinuity.clear(for: self)
         await stopSession()
         setOption(option, to: enabled)
         savePreferences()
-
-        let restarted = await restartFromLiveSnapshot(snapshot)
-        if !restarted {
-            return false
-        }
-
-        return true
+        return await restartFromLiveSnapshot(snapshot)
     }
 
-    /// Applies a preset to a running Vigil session. The remaining countdown is
-    /// preserved instead of restarting the full selected duration.
+    /// Applies a preset to a running Vigil session without resetting the
+    /// current countdown.
     func changeModeLive(_ preset: RuntimeProfile) async -> Bool {
         if !isActive {
             applyPreset(preset)
@@ -71,12 +115,12 @@ extension VigilManager {
         }
 
         let snapshot = captureLiveSessionSnapshot()
+        LiveSessionContinuity.clear(for: self)
         await stopSession()
         applyPreset(preset)
 
-        // Closed-Lid Eco keeps the display logically awake and darkens the
-        // built-in backlight on lid close. This avoids relying on display sleep,
-        // which may invoke the user's Lock Screen policy.
+        // Closed-Lid Eco keeps display sleep logically blocked while allowing
+        // MacVigil to darken the built-in backlight on lid close.
         if preset == .closedLidEco {
             keepDisplayAwake = true
         }
@@ -85,10 +129,11 @@ extension VigilManager {
         return await restartFromLiveSnapshot(snapshot)
     }
 
-    /// Duration changes intentionally start a fresh countdown using the newly
-    /// selected duration while keeping the current protection configuration.
+    /// A deliberate duration change starts a new countdown. Mode and option
+    /// changes do not.
     func changeDurationLive(_ duration: SessionDuration, customMinutes: Int? = nil) async -> Bool {
         let wasActive = isActive
+        LiveSessionContinuity.clear(for: self)
 
         if wasActive {
             await stopSession()
@@ -143,40 +188,45 @@ extension VigilManager {
     private struct LiveSessionSnapshot {
         let selectedDuration: SessionDuration
         let customMinutes: Int
-        let hadDeadline: Bool
-        let remainingMinutes: Int?
+        let deadline: Date?
     }
 
     private func captureLiveSessionSnapshot() -> LiveSessionSnapshot {
-        let hadDeadline = endDate != nil
-        let seconds = remainingSeconds ?? endDate?.timeIntervalSinceNow
-        let minutes: Int?
-
-        if hadDeadline, let seconds {
-            minutes = max(1, Int(ceil(max(1, seconds) / 60.0)))
-        } else {
-            minutes = nil
-        }
-
-        return LiveSessionSnapshot(
+        LiveSessionSnapshot(
             selectedDuration: selectedDuration,
             customMinutes: customMinutes,
-            hadDeadline: hadDeadline,
-            remainingMinutes: minutes
+            deadline: effectiveEndDate
         )
     }
 
     private func restartFromLiveSnapshot(_ snapshot: LiveSessionSnapshot) async -> Bool {
-        if snapshot.hadDeadline, let remainingMinutes = snapshot.remainingMinutes {
+        if let deadline = snapshot.deadline {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else {
+                LiveSessionContinuity.clear(for: self)
+                return false
+            }
+
+            // The regular timer API accepts whole custom minutes. Start it at a
+            // ceiling value, then keep the original exact deadline as the
+            // authoritative countdown and expiry. This prevents any visible or
+            // behavioral timer reset during live reconfiguration.
             selectedDuration = .custom
-            customMinutes = remainingMinutes
+            customMinutes = max(1, Int(ceil(remaining / 60.0)))
             await startSelectedSession()
 
-            let restarted = isActive
+            guard isActive else {
+                selectedDuration = snapshot.selectedDuration
+                customMinutes = snapshot.customMinutes
+                savePreferences()
+                return false
+            }
+
             selectedDuration = snapshot.selectedDuration
             customMinutes = snapshot.customMinutes
             savePreferences()
-            return restarted
+            installExactContinuityDeadline(deadline)
+            return true
         }
 
         selectedDuration = snapshot.selectedDuration
@@ -184,5 +234,21 @@ extension VigilManager {
         await startSelectedSession()
         savePreferences()
         return isActive
+    }
+
+    private func installExactContinuityDeadline(_ deadline: Date) {
+        let generation = LiveSessionContinuity.setDeadline(deadline, for: self)
+        let delay = max(0.05, deadline.timeIntervalSinceNow)
+        let nanoseconds = UInt64(min(delay, TimeInterval(UInt64.max) / 1_000_000_000.0) * 1_000_000_000.0)
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard let self else { return }
+            guard LiveSessionContinuity.isCurrent(generation, for: self) else { return }
+            LiveSessionContinuity.clear(for: self)
+            if self.isActive {
+                await self.stopSession()
+            }
+        }
     }
 }
