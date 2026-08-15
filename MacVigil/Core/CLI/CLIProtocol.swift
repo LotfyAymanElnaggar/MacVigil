@@ -10,6 +10,20 @@ enum MacVigilCLIProtocol {
     static let payloadKey = "payload"
 }
 
+/// macOS 26 exposes the modern three-argument `post` surface in Swift. Keep a
+/// tiny source-compatibility shim so the app and CLI can share one call site
+/// while still building for the macOS 13 deployment target.
+extension DistributedNotificationCenter {
+    func post(
+        name: Notification.Name,
+        object: String?,
+        userInfo: [AnyHashable: Any]?,
+        deliverImmediately: Bool
+    ) {
+        post(name: name, object: object, userInfo: userInfo)
+    }
+}
+
 struct MacVigilCLIRequest: Codable {
     var id: String
     var action: String
