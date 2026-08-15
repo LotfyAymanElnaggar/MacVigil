@@ -11,8 +11,10 @@ final class CLIInstallManager: ObservableObject {
     let installPath = "/usr/local/bin/macvigil"
 
     var bundledCLIPath: String? {
-        Bundle.main.executableURL?
-            .deletingLastPathComponent()
+        Bundle.main.bundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Helpers", isDirectory: true)
             .appendingPathComponent("macvigil", isDirectory: false)
             .path
     }
@@ -74,7 +76,7 @@ final class CLIInstallManager: ObservableObject {
             return
         }
         guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: installPath),
-              normalized(target).contains("MacVigil.app/Contents/MacOS/macvigil") else {
+              normalized(target).contains("MacVigil.app/Contents/Library/Helpers/macvigil") else {
             lastError = "Refusing to remove \(installPath) because it does not point to a MacVigil app bundle."
             return
         }
