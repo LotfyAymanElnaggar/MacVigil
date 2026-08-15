@@ -101,7 +101,7 @@ struct MacVigilApp: App {
         .menuBarExtraStyle(.window)
 
         Window("MacVigil Settings", id: "settings") {
-            MacVigilSettingsView(
+            LiquidGlassSettingsView(
                 manager: manager,
                 updater: updater,
                 jobs: jobs,
@@ -110,21 +110,21 @@ struct MacVigilApp: App {
             )
             .onAppear { refreshDelegateReferences() }
         }
-        .defaultSize(width: 930, height: 680)
+        .defaultSize(width: 980, height: 710)
         .windowResizability(.contentSize)
 
         Window("MacVigil Statistics", id: "statistics") {
-            StatisticsWindowView(manager: manager, power: power)
+            LiquidGlassStatisticsWindowView(manager: manager, power: power)
                 .onAppear { refreshDelegateReferences() }
         }
-        .defaultSize(width: 760, height: 650)
+        .defaultSize(width: 760, height: 720)
         .windowResizability(.contentSize)
 
         Window("Job Guard", id: "job-guard") {
-            ReliableJobGuardWindowView(manager: manager, updater: updater, jobs: jobs)
+            LiquidGlassJobGuardWindowView(manager: manager, updater: updater, jobs: jobs)
                 .onAppear { refreshDelegateReferences() }
         }
-        .defaultSize(width: 650, height: 740)
+        .defaultSize(width: 700, height: 790)
         .windowResizability(.contentSize)
 
         Window("Power Intelligence", id: "power-intelligence") {
@@ -135,10 +135,10 @@ struct MacVigilApp: App {
         .windowResizability(.contentSize)
 
         Window("Update MacVigil", id: "update-confirmation") {
-            UpdateConfirmationWindowView(manager: manager, updater: updater)
+            LiquidGlassUpdateConfirmationView(manager: manager, updater: updater)
                 .onAppear { refreshDelegateReferences() }
         }
-        .defaultSize(width: 470, height: 350)
+        .defaultSize(width: 500, height: 380)
         .windowResizability(.contentSize)
     }
 
