@@ -183,12 +183,14 @@ struct LiquidGlassMenuView: View {
                     }
                 }
                 .disabled(manager.isActive && manager.sessionOwner?.controlsLifetime == true)
+                .accessibilityValue(formatDurationWords(Int(durationMinutes.rounded())))
 
                 HStack {
                     Text("5m")
                     Spacer()
-                    Text("Custom · \(formatMinutes(Int(durationMinutes.rounded())))")
+                    Text("Custom · \(formatDurationWords(Int(durationMinutes.rounded())))")
                         .fontWeight(.medium)
+                        .monospacedDigit()
                     Spacer()
                     Text("12h")
                 }
@@ -329,7 +331,7 @@ struct LiquidGlassMenuView: View {
             guard let seconds = manager.effectiveRemainingSeconds else { return "∞" }
             return remainingText(Int(seconds))
         }
-        return manager.selectedDuration == .custom ? formatMinutes(manager.customMinutes) : manager.selectedDuration.title
+        return manager.selectedDuration == .custom ? formatDurationWords(manager.customMinutes) : manager.selectedDuration.title
     }
 
     private func sectionTitle(_ title: String) -> some View {
@@ -423,6 +425,20 @@ struct LiquidGlassMenuView: View {
         return "\(minutes / 60)h \(minutes % 60)m"
     }
 
+    private func formatDurationWords(_ minutes: Int) -> String {
+        let safeMinutes = max(0, minutes)
+        let hours = safeMinutes / 60
+        let remainingMinutes = safeMinutes % 60
+
+        if hours == 0 {
+            return "\(remainingMinutes) minute\(remainingMinutes == 1 ? "" : "s")"
+        }
+        if remainingMinutes == 0 {
+            return "\(hours) hour\(hours == 1 ? "" : "s")"
+        }
+        return "\(hours) hour\(hours == 1 ? "" : "s") \(remainingMinutes) minute\(remainingMinutes == 1 ? "" : "s")"
+    }
+
     private func remainingText(_ seconds: Int) -> String {
         let safe = max(0, seconds)
         let hours = safe / 3600
@@ -433,9 +449,9 @@ struct LiquidGlassMenuView: View {
     }
 }
 
-// Content surfaces deliberately use standard materials. Apple recommends reserving
-// Liquid Glass for navigation and controls rather than turning every content card
-// into glass.
+// Content surfaces deliberately use standard materials. Liquid Glass is reserved
+// for navigation and controls in the menu; Settings applies native glass to its
+// window chrome and keeps forms readable inside those panes.
 struct MVGlassCard<Content: View>: View {
     let content: Content
 
