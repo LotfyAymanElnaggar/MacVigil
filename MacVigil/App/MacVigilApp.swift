@@ -81,13 +81,20 @@ struct MacVigilApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MacVigilRootView(manager: manager, updater: updater, jobs: jobs)
-                .onAppear {
-                    appDelegate.manager = manager
-                    appDelegate.updater = updater
-                    appDelegate.jobs = jobs
-                    appDelegate.power = power
-                }
+            VStack(spacing: 0) {
+                MacVigilRootView(manager: manager, updater: updater, jobs: jobs)
+
+                Divider()
+
+                PowerIntelligenceBar(power: power)
+                    .background(.ultraThinMaterial)
+            }
+            .onAppear {
+                appDelegate.manager = manager
+                appDelegate.updater = updater
+                appDelegate.jobs = jobs
+                appDelegate.power = power
+            }
         } label: {
             Image(systemName: updater.hasUpdate ? "arrow.down.circle.fill" : (manager.isActive ? "bolt.shield.fill" : "bolt.shield"))
                 .accessibilityLabel(updater.hasUpdate ? "MacVigil update available" : "MacVigil")
