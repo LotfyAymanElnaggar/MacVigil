@@ -9,13 +9,14 @@ struct StatisticsWindowView: View {
             StatisticsDashboardView(manager: manager, power: power)
                 .padding(22)
         }
-        .frame(width: 820, height: 700)
+        .frame(width: 860, height: 720)
     }
 }
 
 struct StatisticsDashboardView: View {
     @ObservedObject var manager: VigilManager
     @ObservedObject var power: PowerIntelligenceController
+    var showsHeader = true
 
     private enum TimeRange: String, CaseIterable, Identifiable {
         case sevenDays = "7 Days"
@@ -51,10 +52,13 @@ struct StatisticsDashboardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header
+            if showsHeader {
+                header
+            }
+
             filters
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 135, maximum: 240), spacing: 10)], spacing: 10) {
                 metricCard("Protected time", duration(totalSeconds), "clock.fill")
                 metricCard("Sessions", "\(filteredSessions.count)", "number.circle.fill")
                 metricCard("Average", filteredSessions.isEmpty ? "—" : duration(totalCompletedSeconds / filteredSessions.count), "equal.circle.fill")
@@ -69,18 +73,19 @@ struct StatisticsDashboardView: View {
                     activityBars
                 }
                 .padding(.top, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            HStack(alignment: .top, spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 12)], alignment: .leading, spacing: 12) {
                 GroupBox("Protection modes") {
                     bucketList(modeBuckets, empty: "No matching completed sessions.")
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 GroupBox("Session owners") {
                     bucketList(ownerBuckets, empty: "No matching completed sessions.")
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 GroupBox("Battery & thermal") {
                     VStack(alignment: .leading, spacing: 9) {
@@ -95,26 +100,25 @@ struct StatisticsDashboardView: View {
                         Text("Battery change is observational only. Charging state and workload intensity also affect it.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.top, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Recent sessions")
-                            .font(.headline)
-                        Spacer()
-                        Button("Export CSV") { power.exportSessionHistoryCSV() }
-                            .buttonStyle(.bordered)
-                            .disabled(power.recentSessions.isEmpty)
-                        if !power.recentSessions.isEmpty {
-                            Button("Clear History", role: .destructive) {
-                                power.clearSessionHistory()
-                            }
-                            .buttonStyle(.bordered)
+                    ViewThatFits(in: .horizontal) {
+                        HStack {
+                            recentSessionsTitle
+                            Spacer()
+                            historyActions
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            recentSessionsTitle
+                            historyActions
                         }
                     }
 
@@ -129,14 +133,17 @@ struct StatisticsDashboardView: View {
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if let status = power.statusText {
                 Label(status, systemImage: "info.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var header: some View {
@@ -158,29 +165,72 @@ struct StatisticsDashboardView: View {
     }
 
     private var filters: some View {
-        HStack(spacing: 10) {
-            Picker("Range", selection: $timeRange) {
-                ForEach(TimeRange.allCases) { range in
-                    Text(range.rawValue).tag(range)
+        GroupBox("Filters") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Range")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(power.recentSessions.count) stored")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Picker("Range", selection: $timeRange) {
+                    ForEach(TimeRange.allCases) { range in
+                        Text(range.rawValue).tag(range)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(maxWidth: .infinity)
+
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Mode")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Picker("Mode", selection: $modeFilter) {
+                            ForEach(modeOptions, id: \.self) { Text($0).tag($0) }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Owner")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Picker("Owner", selection: $ownerFilter) {
+                            ForEach(ownerOptions, id: \.self) { Text($0).tag($0) }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                    }
                 }
             }
-            .pickerStyle(.segmented)
-            .frame(width: 235)
+            .padding(.top, 3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 
-            Picker("Mode", selection: $modeFilter) {
-                ForEach(modeOptions, id: \.self) { Text($0).tag($0) }
+    private var recentSessionsTitle: some View {
+        Text("Recent sessions")
+            .font(.headline)
+    }
+
+    private var historyActions: some View {
+        HStack(spacing: 8) {
+            Button("Export CSV") { power.exportSessionHistoryCSV() }
+                .buttonStyle(.bordered)
+                .disabled(power.recentSessions.isEmpty)
+            if !power.recentSessions.isEmpty {
+                Button("Clear History", role: .destructive) {
+                    power.clearSessionHistory()
+                }
+                .buttonStyle(.bordered)
             }
-            .frame(width: 180)
-
-            Picker("Owner", selection: $ownerFilter) {
-                ForEach(ownerOptions, id: \.self) { Text($0).tag($0) }
-            }
-            .frame(width: 150)
-
-            Spacer()
-            Text("\(power.recentSessions.count) stored")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -191,11 +241,13 @@ struct StatisticsDashboardView: View {
                     .foregroundStyle(Color.accentColor)
                 Text(value)
                     .font(.title3.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         }
     }
 
@@ -226,6 +278,7 @@ struct StatisticsDashboardView: View {
                 .frame(maxWidth: .infinity)
             }
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 142, alignment: .bottom)
     }
 
@@ -240,6 +293,7 @@ struct StatisticsDashboardView: View {
                         HStack {
                             Text(bucket.name)
                                 .font(.subheadline.weight(.medium))
+                                .lineLimit(1)
                             Spacer()
                             Text(duration(bucket.seconds))
                                 .font(.caption.monospacedDigit())
@@ -254,6 +308,7 @@ struct StatisticsDashboardView: View {
             }
         }
         .padding(.top, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func sessionRow(_ session: PowerIntelligenceController.SessionSummary) -> some View {
@@ -262,37 +317,48 @@ struct StatisticsDashboardView: View {
                 .frame(width: 24)
                 .foregroundStyle(Color.accentColor)
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(session.configuration)
-                        .font(.subheadline.weight(.semibold))
-                    Text(session.ownerLabel)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        Text(session.configuration)
+                            .font(.subheadline.weight(.semibold))
+                        Text(session.ownerLabel)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(session.configuration)
+                            .font(.subheadline.weight(.semibold))
+                        Text(session.ownerLabel)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Text(session.startedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
+            Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(duration(session.durationSeconds))
                     .font(.subheadline.monospacedDigit().weight(.semibold))
                 Text(sessionBatteryText(session))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
         .padding(.vertical, 4)
     }
 
     private func statLine(_ title: String, _ value: String) -> some View {
-        HStack {
+        HStack(spacing: 8) {
             Text(title)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Spacer()
+            Spacer(minLength: 8)
             Text(value)
                 .font(.subheadline.weight(.medium))
+                .lineLimit(1)
         }
     }
 
@@ -300,6 +366,7 @@ struct StatisticsDashboardView: View {
         Text(text)
             .font(.subheadline)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .center)
     }
 
