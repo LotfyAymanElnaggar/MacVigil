@@ -25,6 +25,7 @@ Legend: ✅ shipped · 🧪 experimental · 🚧 next · 💡 later
 - ✅ background update notifications and optional automatic installation
 - ✅ Launch at Login
 - ✅ curated GitHub release notes per version
+- ✅ Power Intelligence with lightweight recent-session statistics
 - ✅ universal Apple Silicon + Intel builds
 - ✅ diagnostics for runtime, lid, display, battery, thermal, and sleep state
 - 🧪 experimental closed-lid kernel guard and built-in display darkening
@@ -78,16 +79,19 @@ AI is a first-class use case, not a hard-coded dependency.
 
 - ✅ battery reserve cutoff for closed-lid operation
 - ✅ critical thermal cutoff
-- 🚧 warning state at serious thermal pressure
-- 🚧 estimated time to battery reserve
-- 🚧 optional Closed-Lid Eco only on external power
+- ✅ prominent serious/critical thermal-pressure warning state
+- ✅ estimated time to battery reserve when macOS provides a usable discharge estimate
+- ✅ optional closed-lid protection only on external power
+- ✅ recent session duration, battery delta, and peak thermal statistics
 - 💡 session energy budget
+- 💡 configurable serious-thermal action beyond warning
 
 ## Power measurements
 
 MacVigil should earn efficiency claims with data.
 
-- 🚧 baseline normal macOS behavior
+- ✅ repeatable local benchmark data-collection harness
+- 🚧 collect baseline normal macOS runs
 - 🚧 benchmark `caffeinate`
 - 🚧 benchmark equivalent Amphetamine configurations
 - 🚧 benchmark Compute Guard and Closed-Lid Eco
