@@ -2,6 +2,24 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.4.0] - 2026-08-15
+
+### Added
+
+- persistent user preferences for duration, protection switches, battery reserve, and safety options
+- a compact Ready Check before starting and Live Confirmation while a session is active
+- explicit confirmation of closed-lid authorization, display/Lock Screen policy, SleepDisabled readback, kernel lid-guard state, and safety cutoffs
+- a first-use closed-lid safety confirmation without changing macOS password or Lock Screen settings
+- a documented validation checklist covering open-lid idle, closed-lid continuity, battery, charger, external display, clean stop, and watchdog recovery tests
+- CI checks that confirm plist/version consistency, universal arm64 + x86_64 binaries, DMG creation, checksum generation, and release metadata
+
+### Changed
+
+- the menu-bar interface is simplified around one main Vigil switch, three modes, duration, and a visible readiness card
+- low-level switches are moved into an Advanced Controls disclosure while remaining independently configurable
+- MacVigil now remembers the user's selected controls across relaunches
+- release automation performs explicit validation before publishing a normal GitHub Release
+
 ## [0.3.0] - 2026-08-15
 
 ### Changed
