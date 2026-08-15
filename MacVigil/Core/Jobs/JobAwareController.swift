@@ -326,6 +326,15 @@ final class JobAwareController: ObservableObject {
 
     func handleVigilStoppedExternally() {
         guard isWatching else { return }
+
+        // Live mode/option changes deliberately stop and rebuild the low-level
+        // Vigil session for a moment. Job Guard owns the lifetime in this case,
+        // so that internal handoff must never be interpreted as a user stop.
+        guard !manager.isLiveReconfiguring else {
+            statusText = "Job Guard remains attached while the protection mode changes."
+            return
+        }
+
         pollTimer?.invalidate()
         pollTimer = nil
         launchedProcess = nil
@@ -447,6 +456,13 @@ final class JobAwareController: ObservableObject {
         lastFinishedDuration = duration
         lastResult = result
         statusText = result
+
+        // If the job finishes during a live mode handoff, wait for the new
+        // protection profile to finish rebuilding and then release it. This
+        // prevents an indefinite session from being left behind after the job.
+        while manager.isLiveReconfiguring {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
 
         if manager.isActive {
             await manager.stopLiveSession()
