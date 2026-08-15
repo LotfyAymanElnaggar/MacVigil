@@ -3,6 +3,21 @@ import AppKit
 
 final class MacVigilAppDelegate: NSObject, NSApplicationDelegate {
     weak var manager: VigilManager?
+    weak var updater: UpdateManager?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { @MainActor [weak self] in
+            guard let self,
+                  let manager = self.manager,
+                  let updater = self.updater else { return }
+
+            manager.loadPreferences()
+            await manager.prepareOnLaunch()
+            updater.startBackgroundMonitoring(isVigilActive: { [weak manager] in
+                manager?.isActive ?? false
+            })
+        }
+    }
 
     func applicationWillTerminate(_ notification: Notification) {
         manager?.handleAppTermination()
@@ -18,9 +33,14 @@ struct MacVigilApp: App {
 
     init() {
         let manager = VigilManager()
+        let updater = UpdateManager()
+
         _manager = StateObject(wrappedValue: manager)
-        _updater = StateObject(wrappedValue: UpdateManager())
+        _updater = StateObject(wrappedValue: updater)
         _jobs = StateObject(wrappedValue: JobAwareController(manager: manager))
+
+        appDelegate.manager = manager
+        appDelegate.updater = updater
     }
 
     var body: some Scene {
@@ -28,6 +48,7 @@ struct MacVigilApp: App {
             MacVigilRootView(manager: manager, updater: updater, jobs: jobs)
                 .onAppear {
                     appDelegate.manager = manager
+                    appDelegate.updater = updater
                 }
         } label: {
             Image(systemName: updater.hasUpdate ? "arrow.down.circle.fill" : (manager.isActive ? "bolt.shield.fill" : "bolt.shield"))
@@ -39,6 +60,7 @@ struct MacVigilApp: App {
             JobGuardWindowView(manager: manager, jobs: jobs)
                 .onAppear {
                     appDelegate.manager = manager
+                    appDelegate.updater = updater
                 }
         }
         .defaultSize(width: 520, height: 560)
