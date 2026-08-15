@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-15
+    runs-on: macos-26
 
     steps:
       - name: Checkout
@@ -254,7 +254,7 @@ jobs:
           xcrun lipo -archs "$MACOS_DIR/MacVigil" | grep -q x86_64
           xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q arm64
           xcrun lipo -archs "$MACOS_DIR/MacVigilWatchdog" | grep -q x86_64
-          echo "Universal release binaries, statistics, hotkeys, and app icon confirmed."
+          echo "Universal release binaries, native Liquid Glass availability, statistics, hotkeys, and app icon confirmed."
 
       - name: Create release assets
         shell: bash
