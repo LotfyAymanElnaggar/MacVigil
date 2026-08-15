@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Darwin
+import UserNotifications
 
 @MainActor
 final class JobAwareController: ObservableObject {
@@ -49,11 +50,13 @@ final class JobAwareController: ObservableObject {
     enum ProtectedJobKind: Equatable {
         case process
         case command
+        case port
 
         var title: String {
             switch self {
             case .process: return "Process"
             case .command: return "Command"
+            case .port: return "Port"
             }
         }
 
@@ -61,6 +64,7 @@ final class JobAwareController: ObservableObject {
             switch self {
             case .process: return "gearshape.2"
             case .command: return "terminal"
+            case .port: return "network"
             }
         }
     }
@@ -91,6 +95,7 @@ final class JobAwareController: ObservableObject {
         let id: UUID
         let kind: ProtectedJobKind
         let pid: Int32
+        let port: Int?
         let title: String
         let startedAt: Date
         let logURL: URL?
@@ -122,8 +127,10 @@ final class JobAwareController: ObservableObject {
     }
 
     @Published var pidText = ""
+    @Published var portText = ""
     @Published var commandText = ""
     @Published var processSearchText = ""
+    @Published private(set) var workingDirectoryPath: String
 
     @Published private(set) var processes: [ProcessCandidate] = []
     @Published private(set) var isRefreshingProcesses = false
@@ -146,10 +153,14 @@ final class JobAwareController: ObservableObject {
     private var guardSessionID: UUID?
 
     private let commandHistoryKey = "MacVigil.jobs.commandHistory"
+    private let workingDirectoryKey = "MacVigil.jobs.workingDirectory"
 
     init(manager: VigilManager) {
         self.manager = manager
-        commandHistory = UserDefaults.standard.stringArray(forKey: commandHistoryKey) ?? []
+        let defaults = UserDefaults.standard
+        commandHistory = defaults.stringArray(forKey: commandHistoryKey) ?? []
+        let savedDirectory = defaults.string(forKey: workingDirectoryKey)
+        workingDirectoryPath = savedDirectory ?? FileManager.default.homeDirectoryForCurrentUser.path
     }
 
     var activeJobs: [ProtectedJob] {
@@ -157,18 +168,26 @@ final class JobAwareController: ObservableObject {
     }
 
     var activeJobCount: Int { activeJobs.count }
+    var activePortCount: Int { activeJobs.filter { $0.kind == .port }.count }
     var isWatching: Bool { activeJobCount > 0 }
     var hasLogs: Bool { activeJobs.contains { $0.logURL != nil } }
 
-    // Compatibility conveniences used by compact UI and diagnostics.
-    var watchedPID: Int32? { activeJobCount == 1 ? activeJobs.first?.pid : nil }
+    var watchedPID: Int32? {
+        guard activeJobCount == 1, let job = activeJobs.first, job.pid > 0 else { return nil }
+        return job.pid
+    }
     var jobTitle: String? { activeJobCount == 1 ? activeJobs.first?.title : nil }
     var logURL: URL? { activeJobs.compactMap(\.logURL).first }
 
     var displayStatus: String {
         guard isWatching else { return lastResult ?? "Not watching a job" }
         if activeJobCount == 1, let job = activeJobs.first {
+            if let port = job.port { return "Port \(port) · listening" }
             return "\(job.title) · PID \(job.pid)"
+        }
+        let ports = activePortCount
+        if ports > 0 {
+            return "\(activeJobCount) jobs protected · \(ports) port watch\(ports == 1 ? "" : "es")"
         }
         return "\(activeJobCount) jobs protected · Vigil ends after the last one"
     }
@@ -185,7 +204,11 @@ final class JobAwareController: ObservableObject {
     }
 
     func isProtected(pid: Int32) -> Bool {
-        activeJobs.contains { $0.pid == pid }
+        activeJobs.contains { $0.pid == pid && $0.kind != .port }
+    }
+
+    func isProtected(port: Int) -> Bool {
+        activeJobs.contains { $0.port == port && $0.kind == .port }
     }
 
     var filteredProcesses: [ProcessCandidate] {
@@ -211,7 +234,12 @@ final class JobAwareController: ObservableObject {
             }
     }
 
+    var unprotectedSuggestedProcesses: [ProcessCandidate] {
+        suggestedProcesses.filter { !isProtected(pid: $0.pid) }
+    }
+
     var detectedWorkloadCount: Int { suggestedProcesses.count }
+    var protectableWorkloadCount: Int { unprotectedSuggestedProcesses.count }
 
     var detectionSummary: String {
         let count = detectedWorkloadCount
@@ -289,6 +317,21 @@ final class JobAwareController: ObservableObject {
         }
     }
 
+    func protectSuggestedWorkloads() async {
+        lastError = nil
+        let candidates = Array(unprotectedSuggestedProcesses.prefix(12))
+        guard !candidates.isEmpty else {
+            statusText = "All detected workloads are already protected."
+            return
+        }
+        for process in candidates {
+            await addWatchedProcess(pid: process.pid, title: process.name)
+        }
+        if isWatching {
+            statusText = "Protected \(candidates.count) suggested workload\(candidates.count == 1 ? "" : "s")."
+        }
+    }
+
     func watchProcess(_ process: ProcessCandidate) async {
         pidText = String(process.pid)
         await addWatchedProcess(pid: process.pid, title: process.name)
@@ -306,6 +349,61 @@ final class JobAwareController: ObservableObject {
         await addWatchedProcess(pid: rawPID, title: known?.name ?? "Process \(rawPID)")
     }
 
+    func watchPort() async {
+        lastError = nil
+        let trimmed = portText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let port = Int(trimmed), (1...65535).contains(port) else {
+            lastError = "Enter a valid TCP port from 1 to 65535."
+            return
+        }
+        guard !isProtected(port: port) else {
+            lastError = "Port \(port) is already protected by Job Guard."
+            return
+        }
+        guard let pid = await Self.listeningPID(for: port) else {
+            lastError = "Nothing is listening on TCP port \(port) right now."
+            return
+        }
+        guard await prepareVigilForFirstJobIfNeeded() else { return }
+
+        protectedJobs.append(ProtectedJob(
+            id: UUID(),
+            kind: .port,
+            pid: pid,
+            port: port,
+            title: "Port \(port)",
+            startedAt: Date(),
+            logURL: nil,
+            state: .running,
+            finishedAt: nil,
+            exitCode: nil,
+            result: nil
+        ))
+        statusText = activeJobCount == 1
+            ? "Vigil will remain active while TCP port \(port) is listening."
+            : "Port \(port) added. \(activeJobCount) jobs are now protected."
+        portText = ""
+        ensurePollTimer()
+    }
+
+    func chooseWorkingDirectory() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Command Working Directory"
+        panel.prompt = "Choose"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: workingDirectoryPath)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        workingDirectoryPath = url.path
+        UserDefaults.standard.set(url.path, forKey: workingDirectoryKey)
+    }
+
+    func resetWorkingDirectory() {
+        workingDirectoryPath = FileManager.default.homeDirectoryForCurrentUser.path
+        UserDefaults.standard.removeObject(forKey: workingDirectoryKey)
+    }
+
     func runCommand() async {
         lastError = nil
         lastExitCode = nil
@@ -313,6 +411,12 @@ final class JobAwareController: ObservableObject {
         let command = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty else {
             lastError = "Enter a command to run."
+            return
+        }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: workingDirectoryPath, isDirectory: &isDirectory), isDirectory.boolValue else {
+            lastError = "The selected working directory no longer exists. Choose another folder."
             return
         }
 
@@ -332,7 +436,7 @@ final class JobAwareController: ObservableObject {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/zsh")
             process.arguments = ["-lc", command]
-            process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+            process.currentDirectoryURL = URL(fileURLWithPath: workingDirectoryPath, isDirectory: true)
             process.standardInput = FileHandle.nullDevice
             process.standardOutput = handle
             process.standardError = handle
@@ -355,6 +459,7 @@ final class JobAwareController: ObservableObject {
                 id: id,
                 kind: .command,
                 pid: process.processIdentifier,
+                port: nil,
                 title: command,
                 startedAt: Date(),
                 logURL: log,
@@ -399,9 +504,7 @@ final class JobAwareController: ObservableObject {
         }
     }
 
-    func detach() {
-        detachAll()
-    }
+    func detach() { detachAll() }
 
     func detachAll() {
         guard isWatching else { return }
@@ -471,6 +574,7 @@ final class JobAwareController: ObservableObject {
             id: UUID(),
             kind: .process,
             pid: pid,
+            port: nil,
             title: title,
             startedAt: Date(),
             logURL: nil,
@@ -488,7 +592,6 @@ final class JobAwareController: ObservableObject {
     private func prepareVigilForFirstJobIfNeeded() async -> Bool {
         if isWatching { return true }
 
-        // Starting a new Job Guard collection replaces old finished/detached rows.
         protectedJobs.removeAll()
         lastResult = nil
         lastFinishedDuration = nil
@@ -505,9 +608,6 @@ final class JobAwareController: ObservableObject {
                 return false
             }
 
-            // Convert a normal active timer into job-owned indefinite duration
-            // before claiming ownership. Once claimed, user duration changes are
-            // blocked until Job Guard releases or detaches.
             let ok = await manager.changeDurationLive(.indefinite)
             guard ok, manager.isActive else {
                 lastError = "Could not switch the active Vigil session to job-aware duration."
@@ -572,6 +672,14 @@ final class JobAwareController: ObservableObject {
         for id in exited {
             await finishJob(id: id, result: "Process exited.")
         }
+
+        let ports = activeJobs.filter { $0.kind == .port }
+        for job in ports {
+            guard let port = job.port else { continue }
+            if await Self.listeningPID(for: port) == nil {
+                await finishJob(id: job.id, result: "TCP port \(port) stopped listening.")
+            }
+        }
     }
 
     private func commandDidFinish(
@@ -610,6 +718,7 @@ final class JobAwareController: ObservableObject {
         lastFinishedDuration = totalDuration
         lastResult = "All protected jobs finished. Vigil released."
         statusText = lastResult
+        postCompletionNotification(duration: totalDuration)
 
         while manager.isLiveReconfiguring {
             try? await Task.sleep(nanoseconds: 50_000_000)
@@ -678,9 +787,33 @@ final class JobAwareController: ObservableObject {
         self.savedCustomMinutes = nil
     }
 
+    private func postCompletionNotification(duration: Int) {
+        let content = UNMutableNotificationContent()
+        content.title = "Job Guard finished"
+        content.body = "All protected work finished after \(Self.durationText(duration)). Vigil was released."
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "macvigil-job-guard-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
     private static func processExists(_ pid: Int32) -> Bool {
         if kill(pid, 0) == 0 { return true }
         return errno == EPERM
+    }
+
+    private static func listeningPID(for port: Int) async -> Int32? {
+        let result = await ShellRunner.run("/usr/sbin/lsof", ["-nP", "-iTCP:\(port)", "-sTCP:LISTEN", "-t"])
+        guard result.succeeded else { return nil }
+        for line in result.stdout.split(separator: "\n") {
+            if let pid = Int32(line.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 1 {
+                return pid
+            }
+        }
+        return nil
     }
 
     private static func detectWorkload(name: String, path: String, cpuPercent: Double) -> WorkloadKind? {
