@@ -2,6 +2,21 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.4.1] - 2026-08-15
+
+### Added
+
+- modes can now be changed while a Vigil session is active
+- protection and safety switches can now be changed while a Vigil session is active
+- live mode/option changes preserve the remaining countdown instead of restarting the full timer
+- changing duration while active intentionally starts a fresh countdown using the newly selected duration
+- live changes preflight closed-lid authorization before interrupting a working session
+
+### Safety
+
+- MacVigil blocks removal or transition of lid/display protection while the physical lid is closed; open the lid first
+- Closed-Lid Eco still keeps macOS Lock Screen and password policy unchanged
+
 ## [0.4.0] - 2026-08-15
 
 ### Added
