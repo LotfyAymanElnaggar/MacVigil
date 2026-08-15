@@ -19,9 +19,9 @@ struct MacVigilSettingsView: View {
         case jobGuard = "Job Guard"
         case statistics = "Statistics"
         case hotkeys = "Hotkeys"
+        case cli = "CLI"
         case updates = "Updates"
         case power = "Power & Safety"
-        case appearance = "Appearance"
         case about = "About"
 
         var id: String { rawValue }
@@ -33,9 +33,9 @@ struct MacVigilSettingsView: View {
             case .jobGuard: return "briefcase"
             case .statistics: return "chart.bar.xaxis"
             case .hotkeys: return "keyboard"
+            case .cli: return "terminal"
             case .updates: return "arrow.triangle.2.circlepath"
             case .power: return "battery.100percent.bolt"
-            case .appearance: return "paintbrush"
             case .about: return "info.circle"
             }
         }
@@ -95,10 +95,20 @@ struct MacVigilSettingsView: View {
                 Spacer(minLength: 4)
 
                 if hotkeys.enabled {
-                    Text(hotkeys.startStopKeys)
+                    Text(spacedShortcutKeys(hotkeys.startStopKeys))
                         .font(.caption2.monospaced().weight(.medium))
                         .foregroundStyle(.tertiary)
                 }
+
+                Button {
+                    toggleVigil()
+                } label: {
+                    Image(systemName: manager.isActive ? "stop.fill" : "play.fill")
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(manager.isActive ? Color.red : Color.accentColor)
+                .help(manager.isActive ? "Stop Vigil" : "Start Vigil")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
@@ -120,20 +130,56 @@ struct MacVigilSettingsView: View {
         case .jobGuard: jobGuard
         case .statistics:
             ScrollView {
-                StatisticsDashboardView(manager: manager, power: power)
-                    .padding(20)
+                StatisticsDashboardView(manager: manager, power: power, showsHeader: false)
+                    .padding(18)
             }
             .scrollIndicators(.visible)
         case .hotkeys: hotkeySettings
+        case .cli: cliGuide
         case .updates: updates
         case .power: powerSafety
-        case .appearance: appearance
         case .about: about
         }
     }
 
     private var general: some View {
         settingsForm {
+            SwiftUI.Section("Vigil now") {
+                LabeledContent("Status") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(manager.isActive ? "Active" : "Idle")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(manager.isActive ? Color.green : Color.secondary)
+                        if manager.isActive {
+                            Text("\(manager.configurationName) · \(settingsRemainingText)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                }
+
+                Button {
+                    toggleVigil()
+                } label: {
+                    Label(manager.isActive ? "Stop Vigil" : "Start Vigil", systemImage: manager.isActive ? "stop.circle.fill" : "play.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(manager.isActive ? .red : .accentColor)
+                .help(manager.isActive ? "Stop protection and restore normal macOS sleep behavior" : "Start Vigil with the selected mode and duration")
+
+                if let error = manager.lastError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             SwiftUI.Section("Startup & control") {
                 settingToggle(
                     "Launch at login",
@@ -243,25 +289,43 @@ struct MacVigilSettingsView: View {
         settingsForm {
             SwiftUI.Section("Multi-job protection") {
                 LabeledContent("Status") {
-                    Text(jobs.isWatching
-                         ? "\(jobs.activeJobCount) protected job\(jobs.activeJobCount == 1 ? "" : "s")"
-                         : "Idle")
-                        .foregroundStyle(jobs.isWatching ? Color.green : Color.secondary)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(jobs.isWatching
+                             ? "\(jobs.activeJobCount) protected job\(jobs.activeJobCount == 1 ? "" : "s")"
+                             : "Idle")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(jobs.isWatching ? Color.green : Color.secondary)
+                        if jobs.isWatching {
+                            Text(jobs.displayStatus)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
                 }
 
-                Text("Job Guard keeps one Vigil session alive while any selected job is still running and releases protection only after the final protected job finishes naturally.")
+                Text("Job Guard keeps one Vigil session alive while any selected process, port, or command is still running. Protection releases only after the final protected item finishes naturally.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                settingsActionButton(jobs.isWatching ? "Manage Protected Jobs" : "Open Job Guard", prominent: true) {
+                settingsActionButton(jobs.isWatching ? "Manage Protected Work" : "Open Job Guard", prominent: true) {
                     NSApplication.shared.activate(ignoringOtherApps: true)
                     openWindow(id: "job-guard")
                 }
             }
 
+            SwiftUI.Section("What Job Guard can protect") {
+                Label("Running processes and PIDs", systemImage: "gearshape.2")
+                Label("Local TCP listeners such as ports 3000, 5173, 8000, or 11434", systemImage: "network")
+                Label("Commands launched from a selected project directory", systemImage: "terminal")
+                Label("Suggested local AI, build, server, container, and transfer workloads", systemImage: "sparkles")
+            }
+
             SwiftUI.Section("Session ownership") {
-                Text("Changing modes or individual protection options changes only the power profile. Job Guard remains attached and continues to own when the session ends.")
+                Text("Changing modes or individual protection options changes only the power profile. Job Guard remains attached and continues to own when the session ends. Detaching a job never kills the process.")
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -295,7 +359,7 @@ struct MacVigilSettingsView: View {
                                 .font(.callout.weight(.semibold))
                                 .foregroundStyle(Color.accentColor)
                         } else {
-                            Text(shortcut.keys)
+                            Text(spacedShortcutKeys(shortcut.keys))
                                 .font(.body.monospaced().weight(.semibold))
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 4)
@@ -347,6 +411,72 @@ struct MacVigilSettingsView: View {
             }
         }
         .onDisappear { hotkeys.cancelRecording() }
+    }
+
+    private var cliGuide: some View {
+        settingsForm {
+            SwiftUI.Section("Install the command") {
+                Label("Move MacVigil.app to /Applications first, then use the CLI menu in this Settings window toolbar and choose Install macvigil CLI.", systemImage: "terminal")
+                    .fixedSize(horizontal: false, vertical: true)
+
+                LabeledContent("Installed command") {
+                    Text("/usr/local/bin/macvigil")
+                        .font(.callout.monospaced())
+                        .textSelection(.enabled)
+                }
+
+                Text("The command is a symbolic link to the universal helper inside MacVigil.app. Administrator approval is requested only to create or remove that link.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            SwiftUI.Section("Everyday commands") {
+                cliCommandRow("Check status", "macvigil status")
+                cliCommandRow("Machine-readable status", "macvigil status --json")
+                cliCommandRow("Start Compute Guard for two hours", "macvigil start --mode compute --duration 2h")
+                cliCommandRow("Change mode live", "macvigil mode full-awake")
+                cliCommandRow("Stop protection", "macvigil stop")
+            }
+
+            SwiftUI.Section("Protect terminal work") {
+                cliCommandRow("Run and protect a command", "macvigil run -- npm test")
+                cliCommandRow("Use a project directory", "macvigil run --cwd ~/Projects/app -- npm run build")
+                cliCommandRow("Watch a PID", "macvigil watch-pid 43127")
+                cliCommandRow("Watch local ports", "macvigil watch-port 3000 5173")
+                cliCommandRow("Protect detected workloads", "macvigil protect-suggested")
+            }
+
+            SwiftUI.Section("Saved workflow example") {
+                Text("""
+                macvigil workflow save local-stack \\
+                  --port 3000 \\
+                  --port 11434 \\
+                  --command "npm run dev" \\
+                  --cwd ~/Projects/app
+
+                macvigil workflow run local-stack
+                """)
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
+                .padding(.vertical, 4)
+
+                Button("Copy example") {
+                    copyCLICommand("macvigil workflow save local-stack --port 3000 --port 11434 --command \"npm run dev\" --cwd ~/Projects/app\nmacvigil workflow run local-stack")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            SwiftUI.Section("How CLI control works") {
+                Text("The CLI talks only to the local running MacVigil app and joins the same Vigil session and Job Guard collection as the GUI. It does not start a second power-management runtime and it does not expose an HTTP or TCP control server.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Closed-Lid Eco authorization, battery reserve, thermal safety, and the first-use ventilation acknowledgement still apply to CLI-started protection.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private var updates: some View {
@@ -455,27 +585,6 @@ struct MacVigilSettingsView: View {
         }
     }
 
-    private var appearance: some View {
-        settingsForm {
-            SwiftUI.Section("System appearance") {
-                LabeledContent("Appearance") {
-                    Text("Follows macOS")
-                        .foregroundStyle(.secondary)
-                }
-                LabeledContent("Liquid Glass") {
-                    Text(nativeGlassStatus)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            SwiftUI.Section {
-                Text("Settings follows the native macOS hierarchy: an integrated system sidebar, standard grouped preference content, native switches and sliders, and system-styled actions. MacVigil does not place custom full-pane glass backgrounds behind Settings. On macOS 26 and later, the system can apply Liquid Glass where it belongs in navigation and controls; earlier releases use their native standard appearance.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
     private var about: some View {
         settingsForm {
             SwiftUI.Section {
@@ -483,13 +592,15 @@ struct MacVigilSettingsView: View {
                     Image(nsImage: NSApplication.shared.applicationIconImage)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 64, height: 64)
-                    VStack(alignment: .leading, spacing: 3) {
+                        .frame(width: 72, height: 72)
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("MacVigil")
                             .font(.title2.weight(.semibold))
                         Text("Version \(updater.currentVersion)")
                             .foregroundStyle(.secondary)
                         Text("Local work, uninterrupted.")
+                            .font(.headline)
+                        Text("Keep your work running. Not your screen.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -497,21 +608,42 @@ struct MacVigilSettingsView: View {
                 .padding(.vertical, 6)
             }
 
-            SwiftUI.Section("Project") {
-                Link("GitHub repository", destination: URL(string: "https://github.com/LotfyAymanElnaggar/MacVigil")!)
-                Link("Latest releases", destination: URL(string: "https://github.com/LotfyAymanElnaggar/MacVigil/releases")!)
-                Text("MacVigil is currently distributed with ad-hoc signing rather than Developer ID notarization.")
+            SwiftUI.Section("What MacVigil is for") {
+                Text("MacVigil is an energy-aware runtime continuity utility for long-running local work: AI coding agents, local models, builds and tests, development servers, transfers, rendering, research, backups, and remote Mac workflows.")
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("A Vigil session has one lifetime owner—such as a timer or Job Guard—while its protection mode can change independently underneath it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            SwiftUI.Section("Privacy & local data") {
+                Label("No statistics telemetry is uploaded. Session history, saved workflows, preferences, and hotkeys stay local on this Mac.", systemImage: "hand.raised.fill")
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("GitHub is contacted only for update checks and release downloads when those features are enabled or requested.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            SwiftUI.Section("Safety & distribution") {
+                Text("Closed-lid protection is experimental and can generate significant heat. Keep a MacBook on a hard, ventilated surface and never run sustained closed-lid work in a bag, sleeve, drawer, or other enclosed space.")
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Brightness 0 is not a guarantee that the physical display panel is electrically powered off. Mandatory macOS battery, thermal, shutdown, and Lock Screen behavior remains in control.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("MacVigil is currently distributed with ad-hoc signing rather than Developer ID signing and notarization.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        }
-    }
 
-    private var nativeGlassStatus: String {
-        if #available(macOS 26.0, *) {
-            return "Native system hierarchy + Liquid Glass controls"
+            SwiftUI.Section("Project") {
+                Link("GitHub repository", destination: URL(string: "https://github.com/LotfyAymanElnaggar/MacVigil")!)
+                Link("Latest releases", destination: URL(string: "https://github.com/LotfyAymanElnaggar/MacVigil/releases")!)
+                Link("Report an issue", destination: URL(string: "https://github.com/LotfyAymanElnaggar/MacVigil/issues")!)
+            }
         }
-        return "Native standard macOS appearance"
     }
 
     private var updateStatus: String {
@@ -519,6 +651,15 @@ struct MacVigilSettingsView: View {
         if let status = updater.statusText { return status }
         if let date = updater.lastCheckAt { return "Last checked \(date.formatted(date: .omitted, time: .shortened))." }
         return "Automatic checks do not require opening the menu-bar panel."
+    }
+
+    private var settingsRemainingText: String {
+        guard let remaining = manager.effectiveRemainingSeconds else { return "No timer" }
+        let total = max(0, Int(remaining.rounded(.down)))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        if hours > 0 { return "\(hours)h \(minutes)m left" }
+        return "\(minutes)m left"
     }
 
     private func settingsForm<Content: View>(@ViewBuilder content: () -> Content) -> some View {
@@ -647,6 +788,68 @@ struct MacVigilSettingsView: View {
         } else {
             button.buttonStyle(.bordered)
         }
+    }
+
+    private func cliCommandRow(_ title: String, _ command: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Text(command)
+                    .font(.callout.monospaced())
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button {
+                    copyCLICommand(command)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help("Copy command")
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func copyCLICommand(_ command: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
+    }
+
+    private func toggleVigil() {
+        Task {
+            if manager.isActive {
+                await manager.stopLiveSession()
+            } else {
+                await manager.startFreshSession()
+            }
+        }
+    }
+
+    private func spacedShortcutKeys(_ raw: String) -> String {
+        let modifierSymbols: Set<Character> = ["⌃", "⌥", "⇧", "⌘"]
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var parts: [String] = []
+        var index = trimmed.startIndex
+
+        while index < trimmed.endIndex {
+            let character = trimmed[index]
+            if character.isWhitespace {
+                index = trimmed.index(after: index)
+                continue
+            }
+            guard modifierSymbols.contains(character) else { break }
+            parts.append(String(character))
+            index = trimmed.index(after: index)
+        }
+
+        if index < trimmed.endIndex {
+            let key = String(trimmed[index...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !key.isEmpty { parts.append(key) }
+        }
+
+        return parts.isEmpty ? raw : parts.joined(separator: " ")
     }
 
     private func matches(_ profile: RuntimeProfile) -> Bool {
