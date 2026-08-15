@@ -4,6 +4,28 @@ MacVigil's power-efficiency positioning should be supported by measurements rath
 
 This document defines the benchmark rules before results exist, which reduces the temptation to tune the test around a preferred outcome.
 
+## Benchmark harness
+
+v0.9 adds a small local harness at `scripts/power-benchmark.sh` so repeated runs collect the same basic metadata and battery samples.
+
+Run it from a checkout of the repository:
+
+```bash
+bash scripts/power-benchmark.sh baseline 3600 30
+bash scripts/power-benchmark.sh caffeinate 3600 30
+bash scripts/power-benchmark.sh macvigil-compute-guard 3600 30
+```
+
+Arguments are:
+
+1. a label for the run
+2. duration in seconds
+3. sample interval in seconds
+
+Results are written under `benchmark-results/` unless `MACVIGIL_BENCHMARK_DIR` is set. Each run contains a CSV sample file and a metadata file with the macOS/hardware profile, initial/final power assertions, power settings, and raw battery-registry snapshots.
+
+The harness intentionally does **not** claim to measure precise whole-system watt-hours. Battery percentage is coarse and `pmset` thermal output is platform-dependent. Use higher-quality external or system measurement tools when a claim requires them, while keeping the same workload/configuration controls described below.
+
 ## What we want to measure
 
 For each configuration, record where practical:
