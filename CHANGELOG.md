@@ -2,6 +2,36 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.10.1] - 2026-08-15
+
+### Visible per-job detach controls
+
+Protected Job Guard rows now use explicit text **Detach** buttons instead of relying on a small symbol-only control.
+
+Each running job can be detached independently. Detaching one job leaves the other protected jobs attached, does not terminate the underlying process or command, and does not release Vigil while other protected jobs are still running.
+
+**Detach All** remains available for intentionally leaving the whole Job Guard collection while keeping the actual workloads running.
+
+### Reliable Stop Vigil controls
+
+The critical **Stop Vigil** action is now a large full-width native button with its own layout space instead of being placed in an overlay above the menu-bar UI.
+
+The same Stop Vigil control is also available inside the normal Job Guard window. This gives Job Guard users a stable non-transient window for stopping protection without having to target the small Vigil switch in the menu-bar panel.
+
+Stopping Vigil restores normal macOS sleep behavior and detaches Job Guard, but does not terminate protected jobs.
+
+### Reliable update controls
+
+When an update is available, the main critical-action area uses a large full-width **Update to <version>** button.
+
+If Vigil is active, that action opens the standalone **Update MacVigil** window, where **Stop Vigil & Update** has a larger full-width hit target. This avoids relying on a confirmation attached to the transient menu-bar popover.
+
+The same update action is surfaced inside the normal Job Guard window when an update is available.
+
+### Explicit process actions
+
+Job Guard process lists now use visible **Add** / **Protected** buttons instead of making the entire process row responsible for the action. This makes selecting workloads clearer and reduces accidental or missed clicks.
+
 ## [0.10.0] - 2026-08-15
 
 ### Multi-job Job Guard
