@@ -56,6 +56,7 @@ jobs:
             MacVigil/UI/MacVigilRootView.swift
             MacVigil/UI/PowerIntelligenceView.swift
             MacVigil/UI/PowerIntelligenceBar.swift
+            MacVigil/UI/InteractionReliabilityView.swift
           )
 
           COMMON=(

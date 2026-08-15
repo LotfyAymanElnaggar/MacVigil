@@ -81,14 +81,12 @@ struct MacVigilApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            VStack(spacing: 0) {
-                MacVigilRootView(manager: manager, updater: updater, jobs: jobs)
-
-                Divider()
-
-                PowerIntelligenceBar(power: power)
-                    .background(.ultraThinMaterial)
-            }
+            MacVigilInteractiveRootView(
+                manager: manager,
+                updater: updater,
+                jobs: jobs,
+                power: power
+            )
             .onAppear {
                 appDelegate.manager = manager
                 appDelegate.updater = updater
@@ -123,6 +121,18 @@ struct MacVigilApp: App {
                 }
         }
         .defaultSize(width: 520, height: 650)
+        .windowResizability(.contentSize)
+
+        Window("Update MacVigil", id: "update-confirmation") {
+            UpdateConfirmationWindowView(manager: manager, updater: updater)
+                .onAppear {
+                    appDelegate.manager = manager
+                    appDelegate.updater = updater
+                    appDelegate.jobs = jobs
+                    appDelegate.power = power
+                }
+        }
+        .defaultSize(width: 470, height: 340)
         .windowResizability(.contentSize)
     }
 }
