@@ -431,26 +431,47 @@ struct MacVigilCLI {
     }
 
     private static func installCLI() -> Never {
-        let source = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
         let target = "/usr/local/bin/macvigil"
+        let current = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
+        let installedAppCLI = "/Applications/MacVigil.app/Contents/MacOS/macvigil"
+        let source: String
+
+        if current.hasPrefix("/Applications/MacVigil.app/Contents/MacOS/") {
+            source = current
+        } else if FileManager.default.isExecutableFile(atPath: installedAppCLI) {
+            source = installedAppCLI
+        } else {
+            fail("Move MacVigil.app to /Applications first, then run `macvigil install` again or use Settings → CLI → Install macvigil CLI. Refusing to install a symlink to a temporary DMG path.")
+        }
+
+        if FileManager.default.fileExists(atPath: target),
+           (try? FileManager.default.destinationOfSymbolicLink(atPath: target)) == nil {
+            fail("Refusing to replace \(target) because it is not a symbolic link.")
+        }
+
         let command = "/bin/mkdir -p /usr/local/bin && /bin/ln -sf \(shellQuote(source)) \(shellQuote(target))"
         let script = "do shell script \"\(appleScriptEscape(command))\" with administrator privileges"
         let result = runProcess("/usr/bin/osascript", ["-e", script])
         guard result.status == 0 else { fail(result.stderr.isEmpty ? "Could not install CLI." : result.stderr) }
-        print("Installed macvigil at \(target)")
+        print("Installed macvigil at \(target) → \(source)")
         exit(0)
     }
 
     private static func uninstallCLI() -> Never {
         let target = "/usr/local/bin/macvigil"
-        let destination = URL(fileURLWithPath: target)
-        if FileManager.default.fileExists(atPath: target),
-           let attrs = try? FileManager.default.attributesOfItem(atPath: target),
-           let type = attrs[.type] as? FileAttributeType,
-           type != .typeSymbolicLink {
+        guard FileManager.default.fileExists(atPath: target) else {
+            print("macvigil is not installed at \(target).")
+            exit(0)
+        }
+        guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: target) else {
             fail("Refusing to remove \(target) because it is not a symbolic link.")
         }
-        let command = "/bin/rm -f \(shellQuote(destination.path))"
+        let normalized = NSString(string: destination).standardizingPath
+        guard normalized.contains("MacVigil.app/Contents/MacOS/macvigil") else {
+            fail("Refusing to remove \(target) because it does not point to a MacVigil app bundle.")
+        }
+
+        let command = "/bin/rm -f \(shellQuote(target))"
         let script = "do shell script \"\(appleScriptEscape(command))\" with administrator privileges"
         let result = runProcess("/usr/bin/osascript", ["-e", script])
         guard result.status == 0 else { fail(result.stderr.isEmpty ? "Could not uninstall CLI." : result.stderr) }
