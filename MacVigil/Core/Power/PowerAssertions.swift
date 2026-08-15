@@ -6,20 +6,44 @@ final class PowerAssertions {
     private var idleSystemAssertionID: IOPMAssertionID = 0
     private var displayAssertionID: IOPMAssertionID = 0
 
-    func start(keepDisplayAwake: Bool, reason: String) -> IOReturn {
+    func start(
+        preventSystemSleep: Bool,
+        preventIdleSystemSleep: Bool,
+        keepDisplayAwake: Bool,
+        reason: String
+    ) -> IOReturn {
         stop()
 
-        var result = create(type: kIOPMAssertionTypePreventSystemSleep, reason: reason, id: &systemAssertionID)
-        guard result == kIOReturnSuccess else { return result }
+        if preventSystemSleep {
+            let result = create(
+                type: kIOPMAssertionTypePreventSystemSleep,
+                reason: reason,
+                id: &systemAssertionID
+            )
+            guard result == kIOReturnSuccess else {
+                stop()
+                return result
+            }
+        }
 
-        result = create(type: kIOPMAssertionTypePreventUserIdleSystemSleep, reason: reason, id: &idleSystemAssertionID)
-        guard result == kIOReturnSuccess else {
-            stop()
-            return result
+        if preventIdleSystemSleep {
+            let result = create(
+                type: kIOPMAssertionTypePreventUserIdleSystemSleep,
+                reason: reason,
+                id: &idleSystemAssertionID
+            )
+            guard result == kIOReturnSuccess else {
+                stop()
+                return result
+            }
         }
 
         if keepDisplayAwake {
-            result = create(type: kIOPMAssertionTypePreventUserIdleDisplaySleep, reason: reason, id: &displayAssertionID)
+            let result = create(
+                type: kIOPMAssertionTypePreventUserIdleDisplaySleep,
+                reason: reason,
+                id: &displayAssertionID
+            )
             guard result == kIOReturnSuccess else {
                 stop()
                 return result
