@@ -2,6 +2,56 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.11.0] - 2026-08-15
+
+### Liquid Glass control panel
+
+MacVigil's menu-bar interface has been redesigned around a native translucent glass presentation with layered cards, clearer selected states, larger hit targets, and a simpler everyday control flow.
+
+The main panel now puts the most-used controls together: Vigil on/off, mode selection, duration, battery reserve, Job Guard status, Stop Vigil, and Settings.
+
+### Faster duration control
+
+The main panel now includes quick duration choices for **15m, 30m, 1h, 2h, 4h, and Infinity** plus a slider for custom durations from 5 minutes to 12 hours.
+
+Changing protection mode while a timed Vigil session is active continues to preserve the existing countdown. When Job Guard owns the lifetime, the duration controls do not silently replace that ownership.
+
+### Battery reserve slider
+
+Battery reserve is now adjustable with a dedicated 5–30% slider in both the main control panel and Settings.
+
+The configured reserve continues to feed MacVigil's existing battery safety behavior.
+
+### Separate Settings window
+
+Advanced controls have moved into a dedicated Settings window with sections for:
+
+- General
+- Vigil
+- Job Guard
+- Updates
+- Power & Safety
+- Appearance
+- About
+
+This keeps the menu-bar panel focused on fast interaction while leaving every major protection option independently configurable.
+
+### Job Guard integration
+
+The glass control panel shows Job Guard state and the number of currently protected jobs. Job Guard still owns one multi-job Vigil session and releases only after the final protected job finishes naturally.
+
+Mode changes continue to modify the protection profile underneath Job Guard without discarding the protected jobs.
+
+### New app icon
+
+MacVigil now ships with a generated macOS app icon using the new blue-violet guardian/shield identity with an activity pulse and energy badge. The universal build and release workflows generate and package the `.icns` resource automatically.
+
+### README and release workflow
+
+The README now documents the Liquid Glass interface, duration and battery sliders, dedicated Settings window, and current Job Guard ownership behavior.
+
+Curated release notes remain the source for the GitHub Release body and are synchronized into `CHANGELOG.md` by the release workflow.
+
 ## [0.10.1] - 2026-08-15
 
 ### Visible per-job detach controls
