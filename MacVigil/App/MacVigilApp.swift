@@ -34,5 +34,14 @@ struct MacVigilApp: App {
                 .accessibilityLabel(updater.hasUpdate ? "MacVigil update available" : "MacVigil")
         }
         .menuBarExtraStyle(.window)
+
+        Window("Job Guard", id: "job-guard") {
+            JobGuardWindowView(manager: manager, jobs: jobs)
+                .onAppear {
+                    appDelegate.manager = manager
+                }
+        }
+        .defaultSize(width: 520, height: 560)
+        .windowResizability(.contentSize)
     }
 }
