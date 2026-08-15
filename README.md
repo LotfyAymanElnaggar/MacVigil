@@ -35,7 +35,7 @@ The design uses native system behavior throughout:
 - native grouped `Form` sections on the stable Settings content surface
 - system toggles, sliders, labels, buttons, navigation titles, focus, and selection behavior
 - native Liquid Glass for important menu controls such as mode cards, duration choices, Start/Stop, update actions, and quick destinations on macOS 26+
-- native `GroupBox` and system controls in Statistics instead of custom glass dashboard cards
+- native `GroupBox` and responsive system controls in Statistics instead of custom glass dashboard cards
 - no custom full-pane glass slab around the Settings sidebar, title, or detail content
 - compatibility with standard macOS appearance on macOS 13–15
 
@@ -57,15 +57,17 @@ There is deliberately **less glass in Settings**. Liquid Glass is allowed to com
 
 Settings has dedicated sections for:
 
-- **General** — launch at login, mode, duration, battery reserve
+- **General** — start/stop Vigil, launch at login, mode, duration, battery reserve
 - **Vigil** — every major protection behavior independently controllable
 - **Job Guard** — multi-job session ownership and management
-- **Statistics** — local session history and filters
-- **Hotkeys** — customize global shortcuts
+- **Statistics** — responsive local session history, ranges, mode/owner filters, and CSV export
+- **Hotkeys** — customize global shortcuts with readable spaced key glyphs
+- **CLI** — in-app installation guidance, command examples, workflow examples, and copy buttons
 - **Updates** — background checks and installation preferences
 - **Power & Safety** — battery, thermal, authorization, and external-power policy
-- **Appearance** — native system appearance and Liquid Glass availability
-- **About** — version and project information
+- **About** — product purpose, privacy model, safety/distribution notes, and project links
+
+The empty Appearance page was removed because MacVigil follows the current macOS appearance instead of exposing appearance controls it does not actually own.
 
 The Settings toolbar also includes a native **CLI** menu for installing or removing `/usr/local/bin/macvigil`.
 
@@ -111,9 +113,11 @@ One Job Guard session can protect several kinds of work at the same time:
 
 MacVigil keeps one Job Guard session active while any protected item is still running and releases protection only after the **last protected item** finishes naturally.
 
+The Job Guard window exposes the current capabilities directly instead of hiding them behind the controller layer: protected work is summarized at the top, suggested workloads can be protected together, process loading has a visible progress state, manual PID entry is available, TCP port watching has its own section, and command working-directory controls are visible beside command execution.
+
 ### Port watching
 
-Enter a TCP port such as **3000**, **5173**, **8000**, or **8080**. MacVigil verifies that a local listener exists and keeps Vigil active while that TCP port remains in the listening state. Port checking is local and uses the system `lsof` tool; it is not network traffic inspection.
+Enter a TCP port such as **3000**, **5173**, **8000**, **8080**, or **11434**. MacVigil verifies that a local listener exists and keeps Vigil active while that TCP port remains in the listening state. Port checking is local and uses the system `lsof` tool; it is not network traffic inspection.
 
 ### Actionable workload detection
 
@@ -131,7 +135,9 @@ When the final protected item finishes naturally, Job Guard releases Vigil and p
 
 MacVigil ships a universal Apple Silicon + Intel command-line client inside the app. The CLI talks to the **already-running MacVigil app and the same runtime state** rather than creating a second set of power assertions. The local control transport uses `DistributedNotificationCenter`; it does not open a TCP or HTTP control server.
 
-After moving MacVigil to `/Applications`, open **MacVigil Settings** and use the toolbar **CLI → Install macvigil CLI**. This creates `/usr/local/bin/macvigil` as a symlink to the executable inside the installed app and asks for administrator approval only for that filesystem change. The same menu can remove the symlink. The release DMG also contains a `macvigil` helper, but installation deliberately refuses to create a persistent symlink back into a temporary mounted DMG.
+After moving MacVigil to `/Applications`, open **MacVigil Settings** and use the toolbar **CLI → Install macvigil CLI**. This creates `/usr/local/bin/macvigil` as a symlink to the helper at `MacVigil.app/Contents/Library/Helpers/macvigil` and asks for administrator approval only for that filesystem change. The same menu can remove the symlink. The release DMG also contains a `macvigil` helper, but installation deliberately refuses to create a persistent symlink back into a temporary mounted DMG.
+
+Settings also includes a dedicated **CLI** page with installation instructions, common commands, Terminal-work examples, a saved-workflow example, and copy-to-clipboard buttons so the command-line workflow can be learned without leaving the app.
 
 Common commands:
 
@@ -191,7 +197,7 @@ You can view and filter:
 - peak thermal state
 - recent session history
 
-History can be filtered by mode and owner and exported to a local **CSV** file. MacVigil does not upload statistics telemetry. Battery changes are observational rather than an efficiency benchmark because charging state and workload intensity also affect them.
+Statistics uses responsive filter and card layouts so the dashboard works both in its standalone window and inside the narrower Settings detail pane without squeezing labels into vertical text. History can be filtered by mode and owner and exported to a local **CSV** file. MacVigil does not upload statistics telemetry. Battery changes are observational rather than an efficiency benchmark because charging state and workload intensity also affect them.
 
 ## Customizable global hotkeys
 
@@ -201,12 +207,12 @@ Defaults are:
 
 | Action | Default shortcut |
 | --- | --- |
-| Start / Stop Vigil | **⌥⌘V** |
-| Compute Guard | **⌥⌘1** |
-| Closed-Lid Eco | **⌥⌘2** |
-| Full Awake | **⌥⌘3** |
+| Start / Stop Vigil | **⌥ ⌘ V** |
+| Compute Guard | **⌥ ⌘ 1** |
+| Closed-Lid Eco | **⌥ ⌘ 2** |
+| Full Awake | **⌥ ⌘ 3** |
 
-Click **Change**, press the new combination, and MacVigil saves and re-registers it immediately. At least one modifier key is required. Duplicate MacVigil shortcuts are rejected, system registration conflicts are reported, and each shortcut — or all shortcuts — can be reset to its default.
+Click **Change**, press the new combination, and MacVigil saves and re-registers it immediately. At least one modifier key is required. Duplicate MacVigil shortcuts are rejected, system registration conflicts are reported, and each shortcut — or all shortcuts — can be reset to its default. Shortcut glyphs are spaced in Settings for readability without changing the registered key combination.
 
 Mode hotkeys change only the protection profile underneath the current session, so they do not detach Job Guard or replace its lifetime ownership. Closed-lid authorization and safety rules still apply.
 
