@@ -133,6 +133,29 @@ jobs:
           "$MACOS_DIR/macvigil" help | grep -q "control MacVigil from Terminal"
           echo "Universal app, watchdog, macvigil CLI, Settings integration, native Liquid Glass availability, hotkeys, statistics, and app icon confirmed."
 
+      - name: Launch smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_BIN="build/MacVigil.app/Contents/MacOS/MacVigil"
+          LOG="build/MacVigil-launch.log"
+
+          "$APP_BIN" >"$LOG" 2>&1 &
+          PID=$!
+          sleep 6
+
+          if ! kill -0 "$PID" 2>/dev/null; then
+            STATUS=0
+            wait "$PID" || STATUS=$?
+            echo "MacVigil exited during launch smoke test with status $STATUS" >&2
+            cat "$LOG" >&2 || true
+            exit 1
+          fi
+
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" || true
+          echo "MacVigil remained alive for 6 seconds after launch."
+
       - name: Create DMG
         shell: bash
         run: |
@@ -163,4 +186,5 @@ jobs:
           path: |
             build/MacVigil-*.dmg
             build/SHA256SUMS.txt
+            build/MacVigil-launch.log
           if-no-files-found: error
