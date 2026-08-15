@@ -3,11 +3,13 @@ import Combine
 import CryptoKit
 import AppKit
 import UserNotifications
+import ServiceManagement
 
 @MainActor
 final class UpdateManager: ObservableObject {
     @Published var automaticChecksEnabled: Bool
     @Published var automaticInstallEnabled: Bool
+    @Published private(set) var launchAtLoginEnabled: Bool
     @Published private(set) var availableVersion: String?
     @Published private(set) var isChecking = false
     @Published private(set) var isInstalling = false
@@ -47,6 +49,9 @@ final class UpdateManager: ObservableObject {
     private var availableAsset: Asset?
     private var releasePageURL: URL?
     private var periodicTimer: Timer?
+    private var wakeObserver: NSObjectProtocol?
+    private var backgroundMonitoringStarted = false
+    private var isVigilActiveProvider: (() -> Bool)?
 
     init() {
         let defaults = UserDefaults.standard
@@ -54,6 +59,13 @@ final class UpdateManager: ObservableObject {
             ? true
             : defaults.bool(forKey: automaticChecksKey)
         automaticInstallEnabled = defaults.bool(forKey: automaticInstallKey)
+        launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
+    }
+
+    deinit {
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
     }
 
     var currentVersion: String {
@@ -68,11 +80,48 @@ final class UpdateManager: ObservableObject {
         defaults.set(automaticInstallEnabled, forKey: automaticInstallKey)
     }
 
+    /// Starts updater work independently of the MenuBarExtra content view.
+    /// This must be called from the application lifecycle so opening the menu
+    /// is never required to discover or notify about a new release.
+    func startBackgroundMonitoring(isVigilActive: @escaping () -> Bool) {
+        isVigilActiveProvider = isVigilActive
+        refreshLaunchAtLoginState()
+
+        guard !backgroundMonitoringStarted else {
+            startPeriodicChecks()
+            return
+        }
+        backgroundMonitoringStarted = true
+
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.automaticChecksEnabled else { return }
+                await self.checkForUpdates(userInitiated: false)
+            }
+        }
+
+        startPeriodicChecks()
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if self.automaticChecksEnabled {
+                await self.prepareNotificationAuthorization()
+                await self.checkForUpdates(userInitiated: false)
+            }
+        }
+    }
+
     func startPeriodicChecks() {
         periodicTimer?.invalidate()
         guard automaticChecksEnabled else { return }
 
-        periodicTimer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in
+        // Hourly keeps release notifications reasonably prompt without polling
+        // GitHub aggressively. The timer runs while the menu-bar app is alive.
+        periodicTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.automaticChecksEnabled else { return }
                 await self.checkForUpdates(userInitiated: false)
@@ -90,6 +139,7 @@ final class UpdateManager: ObservableObject {
 
         do {
             var request = URLRequest(url: latestReleaseAPI)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
             request.setValue("MacVigil/\(currentVersion)", forHTTPHeaderField: "User-Agent")
             request.timeoutInterval = 20
@@ -121,12 +171,48 @@ final class UpdateManager: ObservableObject {
             releasePageURL = release.htmlURL
             statusText = "MacVigil \(version) is available."
             await notifyIfNeeded(version: version)
+            await installAutomaticallyIfEligible()
         } catch {
             if userInitiated {
                 lastError = "Could not check for updates: \(error.localizedDescription)"
                 statusText = nil
             }
         }
+    }
+
+    func installAutomaticallyIfEligible() async {
+        guard automaticInstallEnabled,
+              hasUpdate,
+              !isInstalling,
+              !(isVigilActiveProvider?() ?? false) else { return }
+        await installAvailableUpdate()
+    }
+
+    func vigilDidBecomeInactive() {
+        Task { @MainActor [weak self] in
+            await self?.installAutomaticallyIfEligible()
+        }
+    }
+
+    func setLaunchAtLogin(_ enabled: Bool) {
+        lastError = nil
+        do {
+            if enabled {
+                if SMAppService.mainApp.status != .enabled {
+                    try SMAppService.mainApp.register()
+                }
+            } else if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+            }
+            refreshLaunchAtLoginState()
+        } catch {
+            refreshLaunchAtLoginState()
+            lastError = "Could not change Launch at Login: \(error.localizedDescription)"
+        }
+    }
+
+    func refreshLaunchAtLoginState() {
+        launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
     }
 
     func installAvailableUpdate() async {
@@ -240,13 +326,26 @@ final class UpdateManager: ObservableObject {
         NSWorkspace.shared.open(releasePageURL ?? releasesPage)
     }
 
+    private func prepareNotificationAuthorization() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .notDetermined else { return }
+        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+    }
+
     private func notifyIfNeeded(version: String) async {
         let defaults = UserDefaults.standard
         guard defaults.string(forKey: lastNotifiedVersionKey) != version else { return }
 
         do {
             let center = UNUserNotificationCenter.current()
-            let granted = try await center.requestAuthorization(options: [.alert, .sound])
+            let settings = await center.notificationSettings()
+            let granted: Bool
+            if settings.authorizationStatus == .notDetermined {
+                granted = try await center.requestAuthorization(options: [.alert, .sound])
+            } else {
+                granted = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+            }
             guard granted else { return }
 
             let content = UNMutableNotificationContent()
