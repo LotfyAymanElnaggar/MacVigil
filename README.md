@@ -6,11 +6,13 @@
 
 **Energy-aware runtime protection for macOS. Keep AI agents, local models, builds, dev servers, renders, transfers, and long-running jobs alive without keeping everything else awake.**
 
+[![Build](https://github.com/LotfyAymanElnaggar/MacVigil/actions/workflows/build.yml/badge.svg)](https://github.com/LotfyAymanElnaggar/MacVigil/actions/workflows/build.yml)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](#requirements)
 [![Swift](https://img.shields.io/badge/Swift-native-orange?logo=swift)](#architecture)
+[![Status](https://img.shields.io/badge/status-pre--1.0-yellow)](#current-project-status)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[Why MacVigil](#why-macvigil) · [Power philosophy](#power-first-by-design) · [Roadmap](ROADMAP.md) · [Docs](docs/README.md)
+[Why MacVigil](#why-macvigil) · [Power philosophy](#power-first-by-design) · [Roadmap](ROADMAP.md) · [Docs](docs/README.md) · [Compatibility](docs/COMPATIBILITY.md) · [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -65,15 +67,17 @@ MacVigil is a **fresh production-oriented codebase** built from lessons learned 
 The initial MacVigil milestone focuses on:
 
 - native menu-bar UX
-- timed and indefinite runtime protection
+- timed, custom, and indefinite runtime protection
+- three explicit runtime profiles
 - independent display policy
 - experimental closed-lid runtime protection
-- low-battery safety
+- low-battery reserve and critical thermal-pressure handling
 - crash-safe restoration
 - transparent diagnostics
+- universal Apple Silicon + Intel builds
 - a clean foundation for job-aware and energy-aware automation
 
-Closed-lid behavior depends on macOS implementation details and should be treated as experimental until the compatibility matrix is broad enough.
+Closed-lid behavior depends on macOS implementation details and should be treated as experimental until the [compatibility matrix](docs/COMPATIBILITY.md) is broad enough.
 
 ## Product direction
 
