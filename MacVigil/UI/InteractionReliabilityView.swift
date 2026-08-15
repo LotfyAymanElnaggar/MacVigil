@@ -1,9 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// The menu-bar shell keeps the two critical actions in a safe-area inset.
-/// Unlike an overlay, the inset owns real layout space and its buttons do not
-/// compete with controls underneath it for pointer events.
 struct MacVigilInteractiveRootView: View {
     @ObservedObject var manager: VigilManager
     @ObservedObject var updater: UpdateManager
@@ -13,9 +10,7 @@ struct MacVigilInteractiveRootView: View {
     var body: some View {
         VStack(spacing: 0) {
             MacVigilRootView(manager: manager, updater: updater, jobs: jobs)
-
             Divider()
-
             PowerIntelligenceBar(power: power)
                 .background(.ultraThinMaterial)
         }
@@ -33,8 +28,6 @@ struct MacVigilInteractiveRootView: View {
     }
 }
 
-/// Large, native, full-width actions shared by the menu-bar panel and normal
-/// Job Guard window. Keeping this logic in one view avoids drifting behavior.
 struct ReliableCriticalActions: View {
     @ObservedObject var manager: VigilManager
     @ObservedObject var updater: UpdateManager
@@ -105,9 +98,6 @@ struct ReliableCriticalActions: View {
     }
 }
 
-/// A normal macOS Job Guard window with explicit per-row controls. Important
-/// actions are text buttons rather than symbol-only hit targets so they remain
-/// visible and clickable across supported macOS/SF Symbols versions.
 struct ReliableJobGuardWindowView: View {
     @ObservedObject var manager: VigilManager
     @ObservedObject var updater: UpdateManager
@@ -175,9 +165,7 @@ struct ReliableJobGuardWindowView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-
             Spacer()
-
             Button("Done") { dismiss() }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
@@ -215,9 +203,7 @@ struct ReliableJobGuardWindowView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-
                 Spacer()
-
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("ACTIVE")
                         .font(.caption2.weight(.bold))
@@ -272,7 +258,6 @@ struct ReliableJobGuardWindowView: View {
                     .font(.subheadline.weight(job.state == .running ? .semibold : .regular))
                     .lineLimit(2)
                     .truncationMode(.middle)
-
                 HStack(spacing: 6) {
                     Text("PID \(job.pid)").monospacedDigit()
                     Text("•")
@@ -300,7 +285,6 @@ struct ReliableJobGuardWindowView: View {
                             .controlSize(.small)
                             .fixedSize()
                     }
-
                     if job.state == .running {
                         Button("Detach") { jobs.detachJob(job.id) }
                             .buttonStyle(.bordered)
@@ -322,7 +306,6 @@ struct ReliableJobGuardWindowView: View {
     @ViewBuilder
     private var suggestedWorkloadsCard: some View {
         let suggestions = Array(jobs.suggestedProcesses.prefix(6))
-
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Label(jobs.isWatching ? "Add a suggested workload" : "Suggested workloads", systemImage: "sparkles")
@@ -344,7 +327,6 @@ struct ReliableJobGuardWindowView: View {
                      : "Suggestions are local and opt-in. Add only the work you want MacVigil to protect.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
                 VStack(spacing: 4) {
                     ForEach(suggestions) { process in
                         processRow(process, showCategory: true)
@@ -399,7 +381,6 @@ struct ReliableJobGuardWindowView: View {
                     ForEach(Array(jobs.filteredProcesses.prefix(80))) { process in
                         processRow(process, showCategory: true)
                     }
-
                     if jobs.filteredProcesses.isEmpty && !jobs.isRefreshingProcesses {
                         Text("No matching processes")
                             .font(.caption)
@@ -417,7 +398,6 @@ struct ReliableJobGuardWindowView: View {
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .pid)
                         .onSubmit { addManualPID() }
-
                     Button("Add PID") { addManualPID() }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
@@ -456,7 +436,6 @@ struct ReliableJobGuardWindowView: View {
                             .foregroundStyle(Color.accentColor)
                     }
                 }
-
                 HStack(spacing: 6) {
                     Text("PID \(process.pid)").monospacedDigit()
                     if !process.cpuText.isEmpty {
@@ -470,14 +449,20 @@ struct ReliableJobGuardWindowView: View {
 
             Spacer(minLength: 8)
 
-            Button(protected ? "Protected" : "Add") {
-                guard !protected else { return }
-                Task { await jobs.watchProcess(process) }
+            if protected {
+                Button("Protected") { }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(true)
+                    .fixedSize()
+            } else {
+                Button("Add") {
+                    Task { await jobs.watchProcess(process) }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .fixedSize()
             }
-            .buttonStyle(protected ? .bordered : .borderedProminent)
-            .controlSize(.small)
-            .disabled(protected)
-            .fixedSize()
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
@@ -600,8 +585,6 @@ struct ReliableJobGuardWindowView: View {
     }
 }
 
-/// A real macOS window is used for the stop-and-update decision. This avoids
-/// relying on an alert attached to the transient MenuBarExtra window.
 struct UpdateConfirmationWindowView: View {
     @ObservedObject var manager: VigilManager
     @ObservedObject var updater: UpdateManager
@@ -616,7 +599,6 @@ struct UpdateConfirmationWindowView: View {
                 Image(systemName: "arrow.down.circle.fill")
                     .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
-
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Update MacVigil")
                         .font(.title2.weight(.semibold))
@@ -634,12 +616,10 @@ struct UpdateConfirmationWindowView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-
                     HStack {
                         Text(manager.configurationName)
                         Spacer()
-                        Text(remainingText)
-                            .monospacedDigit()
+                        Text(remainingText).monospacedDigit()
                     }
                     .font(.caption.weight(.medium))
                     .padding(.top, 3)
@@ -656,8 +636,7 @@ struct UpdateConfirmationWindowView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else if working || updater.isInstalling {
                 HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
+                    ProgressView().controlSize(.small)
                     Text(updater.statusText ?? (manager.isActive ? "Stopping Vigil…" : "Preparing update…"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -683,7 +662,6 @@ struct UpdateConfirmationWindowView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
-
                 Button(manager.isActive ? "Keep Vigil Running" : "Cancel") { dismiss() }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
@@ -722,7 +700,6 @@ struct UpdateConfirmationWindowView: View {
         guard !working else { return }
         working = true
         localError = nil
-
         Task {
             if manager.isActive {
                 await manager.stopLiveSession()
@@ -732,9 +709,7 @@ struct UpdateConfirmationWindowView: View {
                     return
                 }
             }
-
             await updater.installAvailableUpdate()
-
             if let error = updater.lastError {
                 localError = error
                 working = false
