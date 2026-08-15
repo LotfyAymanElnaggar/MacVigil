@@ -8,6 +8,8 @@
     <string>MacVigil</string>
     <key>CFBundleIdentifier</key>
     <string>com.lotfy.macvigil</string>
+    <key>CFBundleIconFile</key>
+    <string>MacVigil.icns</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
