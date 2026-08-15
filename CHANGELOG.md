@@ -2,6 +2,45 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.10.0] - 2026-08-15
+
+### Multi-job Job Guard
+
+Job Guard can now protect **multiple processes and commands in one Vigil session**.
+
+Add another running process, PID, or shell command while Job Guard is already active. Every protected job is tracked independently with its own PID, runtime state, elapsed time, command log when applicable, and exit result.
+
+Vigil remains active while **at least one protected job is still running**. Finishing one job no longer releases protection if another selected job still needs it. When the final protected job finishes naturally, Job Guard releases Vigil and restores the user's normal duration preference.
+
+### Session ownership
+
+MacVigil now explicitly separates **session lifetime ownership** from the active protection mode.
+
+A normal timer owns a normal Vigil session. Job Guard owns a job-aware session. Changing Compute Guard, Closed-Lid Eco, Full Awake, or individual protection switches changes the power-protection profile underneath the existing owner instead of replacing the session.
+
+While Job Guard owns the lifetime, changing the normal duration cannot silently replace the job-aware lifetime with a timer.
+
+### Per-job control
+
+- detach one protected job without affecting the others
+- detach all jobs without terminating them and without forcibly stopping Vigil
+- open the captured log for each command independently
+- see running, finished, and detached jobs together while the Job Guard session is active
+- prevent the same PID from being added twice
+- keep adding jobs from smart suggestions, the full process picker, manual PID entry, or command runner
+
+Manual **Stop Vigil** remains an explicit override: it restores normal macOS sleep behavior and detaches Job Guard, but it never terminates the user's running processes or commands.
+
+### Interaction cleanup
+
+The Job Guard window no longer hides the process picker and command runner while a job is active. They stay available so more work can be added to the same protected session.
+
+The compact menu-bar Job Guard row no longer uses a parent row tap gesture that could compete with its buttons; Configure/Manage, logs, detach, and options keep their own explicit hit targets.
+
+### Reliability
+
+If the final protected job finishes during a live mode handoff, Job Guard waits for that internal handoff to finish before releasing Vigil. Automatic updates continue to treat live handoffs as active protection and do not start in the middle of a reconfiguration.
+
 ## [0.9.2] - 2026-08-15
 
 ### Job Guard now survives live mode changes
