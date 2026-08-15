@@ -58,15 +58,23 @@ struct MacVigilSettingsView: View {
     }
 
     private var sidebar: some View {
-        List(SettingsSection.allCases, selection: $selection) { item in
-            Label(item.rawValue, systemImage: item.icon)
-                .tag(item)
-        }
-        .listStyle(.sidebar)
-        .navigationTitle("MacVigil")
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        VStack(spacing: 10) {
+            List(SettingsSection.allCases, selection: $selection) { item in
+                Label(item.rawValue, systemImage: item.icon)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .tag(item)
+            }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+
             statusFooter
         }
+        .padding(10)
+        .modifier(MVSettingsGlassPane(cornerRadius: 22))
+        .padding(10)
+        .navigationTitle("MacVigil")
+        .navigationSplitViewColumnWidth(min: 210, ideal: 245, max: 285)
     }
 
     private var statusFooter: some View {
@@ -90,11 +98,11 @@ struct MacVigilSettingsView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.bar)
+        .modifier(MVSettingsInsetGlass(cornerRadius: 14))
     }
 
     private var detail: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(currentSection.rawValue)
@@ -104,15 +112,24 @@ struct MacVigilSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+                if #available(macOS 26.0, *) {
+                    Label("Liquid Glass", systemImage: "sparkles")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .glassEffect(.regular, in: Capsule())
+                }
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 22)
-            .padding(.bottom, 14)
-
-            Divider()
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .modifier(MVSettingsGlassPane(cornerRadius: 20))
 
             selectedContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .modifier(MVSettingsGlassPane(cornerRadius: 24))
         }
+        .padding(12)
     }
 
     @ViewBuilder
@@ -124,8 +141,9 @@ struct MacVigilSettingsView: View {
         case .statistics:
             ScrollView {
                 StatisticsDashboardView(manager: manager, power: power)
-                    .padding(24)
+                    .padding(20)
             }
+            .scrollIndicators(.visible)
         case .hotkeys: hotkeySettings
         case .updates: updates
         case .power: powerSafety
@@ -135,7 +153,7 @@ struct MacVigilSettingsView: View {
     }
 
     private var general: some View {
-        SwiftUI.Form {
+        settingsForm {
             SwiftUI.Section("Startup & control") {
                 settingToggle(
                     "Launch at login",
@@ -195,8 +213,14 @@ struct MacVigilSettingsView: View {
                 .disabled(manager.isActive && manager.sessionOwner?.controlsLifetime == true)
 
                 LabeledContent("Custom duration") {
-                    Text(formatMinutes(Int(durationMinutes.rounded())))
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(formatDurationWords(Int(durationMinutes.rounded())))
+                            .fontWeight(.semibold)
+                            .monospacedDigit()
+                        Text(formatMinutes(Int(durationMinutes.rounded())))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
 
@@ -215,11 +239,10 @@ struct MacVigilSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 
     private var vigil: some View {
-        SwiftUI.Form {
+        settingsForm {
             SwiftUI.Section {
                 Text("Presets populate these switches. Every major protection behavior remains independently controllable, including safe live changes while Vigil is active.")
                     .font(.callout)
@@ -239,11 +262,10 @@ struct MacVigilSettingsView: View {
                 optionToggle("Darken built-in display on lid close", "Reduce built-in backlight while protected.", .darkenBuiltinDisplayOnLidClose)
             }
         }
-        .formStyle(.grouped)
     }
 
     private var jobGuard: some View {
-        SwiftUI.Form {
+        settingsForm {
             SwiftUI.Section("Multi-job protection") {
                 LabeledContent("Status") {
                     Text(jobs.isWatching
@@ -256,12 +278,10 @@ struct MacVigilSettingsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
-                Button(jobs.isWatching ? "Manage Protected Jobs" : "Open Job Guard") {
+                settingsActionButton(jobs.isWatching ? "Manage Protected Jobs" : "Open Job Guard", prominent: true) {
                     NSApplication.shared.activate(ignoringOtherApps: true)
                     openWindow(id: "job-guard")
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
 
             SwiftUI.Section("Session ownership") {
@@ -269,11 +289,10 @@ struct MacVigilSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 
     private var hotkeySettings: some View {
-        SwiftUI.Form {
+        settingsForm {
             SwiftUI.Section {
                 settingToggle(
                     "Enable global hotkeys",
@@ -307,11 +326,10 @@ struct MacVigilSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 
     private var updates: some View {
-        SwiftUI.Form {
+        settingsForm {
             SwiftUI.Section("Background updates") {
                 settingToggle(
                     "Automatic checks",
@@ -345,31 +363,29 @@ struct MacVigilSettingsView: View {
                 }
 
                 HStack {
-                    Button(updater.isChecking ? "Checking…" : "Check Now") {
+                    settingsActionButton(updater.isChecking ? "Checking…" : "Check Now") {
                         Task { await updater.checkForUpdates(userInitiated: true) }
                     }
                     .disabled(updater.isChecking || updater.isInstalling)
 
                     if updater.hasUpdate {
-                        Button(updater.isInstalling ? "Updating…" : "Update Now") {
+                        settingsActionButton(updater.isInstalling ? "Updating…" : "Update Now", prominent: true) {
                             if manager.isActive {
                                 openWindow(id: "update-confirmation")
                             } else {
                                 Task { await updater.installAvailableUpdate() }
                             }
                         }
-                        .buttonStyle(.borderedProminent)
                         .disabled(updater.isInstalling)
                     }
                 }
                 .controlSize(.large)
             }
         }
-        .formStyle(.grouped)
     }
 
     private var powerSafety: some View {
-        SwiftUI.Form {
+        settingsForm {
             SwiftUI.Section("Battery & thermal") {
                 optionToggle("Battery safety", "Stop protection at the configured reserve.", .enableBatterySafety)
                 optionToggle("Critical thermal cutoff", "Keep macOS thermal safety in control.", .enableThermalSafety)
@@ -402,11 +418,11 @@ struct MacVigilSettingsView: View {
                     Button("Remove Closed-Lid Authorization", role: .destructive) {
                         Task { await manager.removeClosedLidAuthorization() }
                     }
+                    .controlSize(.large)
                 } else {
-                    Button("Install Closed-Lid Authorization") {
+                    settingsActionButton("Install Closed-Lid Authorization", prominent: true) {
                         Task { await manager.installClosedLidAuthorization() }
                     }
-                    .buttonStyle(.borderedProminent)
                 }
             }
 
@@ -416,11 +432,10 @@ struct MacVigilSettingsView: View {
                     .foregroundStyle(.orange)
             }
         }
-        .formStyle(.grouped)
     }
 
     private var appearance: some View {
-        SwiftUI.Form {
+        settingsForm {
             SwiftUI.Section("System appearance") {
                 LabeledContent("Appearance") {
                     Text("Follows macOS")
@@ -433,16 +448,15 @@ struct MacVigilSettingsView: View {
             }
 
             SwiftUI.Section {
-                Text("On macOS 26 and later, MacVigil uses Apple's native Liquid Glass APIs for navigation and important interactive controls. Content areas use standard system materials, matching Apple's guidance instead of applying glass to every surface. Earlier macOS releases use standard materials and controls as a compatibility fallback.")
+                Text("On macOS 26 and later, the Settings sidebar, status surface, detail header, detail pane, mode controls, duration controls, and major actions use Apple's native Liquid Glass APIs. Forms stay readable inside the glass panes. Earlier macOS releases use standard system materials as a compatibility fallback.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 
     private var about: some View {
-        SwiftUI.Form {
+        settingsForm {
             SwiftUI.Section {
                 HStack(spacing: 14) {
                     Image(nsImage: NSApplication.shared.applicationIconImage)
@@ -470,7 +484,6 @@ struct MacVigilSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 
     private var subtitle: String {
@@ -482,14 +495,14 @@ struct MacVigilSettingsView: View {
         case .hotkeys: return "Control Vigil without opening the menu first."
         case .updates: return "Background update discovery and installation."
         case .power: return "Battery, thermal, and closed-lid safety."
-        case .appearance: return "Native macOS presentation and adaptive Liquid Glass."
+        case .appearance: return "Native macOS presentation and Liquid Glass Settings chrome."
         case .about: return "Version and project information."
         }
     }
 
     private var nativeGlassStatus: String {
         if #available(macOS 26.0, *) {
-            return "Native system Liquid Glass"
+            return "Native Liquid Glass · Settings + controls"
         }
         return "Standard material compatibility mode"
     }
@@ -499,6 +512,34 @@ struct MacVigilSettingsView: View {
         if let status = updater.statusText { return status }
         if let date = updater.lastCheckAt { return "Last checked \(date.formatted(date: .omitted, time: .shortened))." }
         return "Automatic checks do not require opening the menu-bar panel."
+    }
+
+    private func settingsForm<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        SwiftUI.Form {
+            content()
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.clear)
+    }
+
+    @ViewBuilder
+    private func settingsActionButton(_ title: String, prominent: Bool = false, action: @escaping () -> Void) -> some View {
+        if #available(macOS 26.0, *) {
+            if prominent {
+                Button(title, action: action)
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.large)
+            } else {
+                Button(title, action: action)
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+            }
+        } else {
+            Button(title, action: action)
+                .buttonStyle(prominent ? .borderedProminent : .bordered)
+                .controlSize(.large)
+        }
     }
 
     private func settingToggle(
@@ -601,5 +642,49 @@ struct MacVigilSettingsView: View {
         if minutes < 60 { return "\(minutes)m" }
         if minutes % 60 == 0 { return "\(minutes / 60)h" }
         return "\(minutes / 60)h \(minutes % 60)m"
+    }
+
+    private func formatDurationWords(_ minutes: Int) -> String {
+        let safeMinutes = max(0, minutes)
+        let hours = safeMinutes / 60
+        let remainingMinutes = safeMinutes % 60
+
+        if hours == 0 {
+            return "\(remainingMinutes) minute\(remainingMinutes == 1 ? "" : "s")"
+        }
+        if remainingMinutes == 0 {
+            return "\(hours) hour\(hours == 1 ? "" : "s")"
+        }
+        return "\(hours) hour\(hours == 1 ? "" : "s") \(remainingMinutes) minute\(remainingMinutes == 1 ? "" : "s")"
+    }
+}
+
+private struct MVSettingsGlassPane: ViewModifier {
+    let cornerRadius: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            content
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+    }
+}
+
+private struct MVSettingsInsetGlass: ViewModifier {
+    let cornerRadius: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            content
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
     }
 }
