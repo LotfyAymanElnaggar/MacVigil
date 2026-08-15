@@ -8,6 +8,7 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
     weak var jobs: JobAwareController?
     weak var power: PowerIntelligenceController?
     weak var hotkeys: GlobalHotkeyManager?
+    private var cliServer: CLIControlServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
@@ -26,10 +27,17 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
             self.power?.startBackgroundMonitoring()
             self.hotkeys?.start()
             await self.jobs?.refreshProcesses()
+
+            if let jobs = self.jobs {
+                let server = CLIControlServer(manager: manager, jobs: jobs)
+                server.start()
+                self.cliServer = server
+            }
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        cliServer?.stop()
         hotkeys?.stop()
         manager?.handleAppTermination()
     }
