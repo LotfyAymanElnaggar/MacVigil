@@ -10,11 +10,18 @@ final class UpdateManager: ObservableObject {
     @Published var automaticChecksEnabled: Bool
     @Published var automaticInstallEnabled: Bool
     @Published private(set) var launchAtLoginEnabled: Bool
+    @Published private(set) var launchAtLoginStatusText: String?
     @Published private(set) var availableVersion: String?
     @Published private(set) var isChecking = false
     @Published private(set) var isInstalling = false
     @Published private(set) var statusText: String?
     @Published private(set) var lastError: String?
+    @Published private(set) var lastCheckAt: Date?
+
+    static let updateCategoryIdentifier = "MACVIGIL_UPDATE_AVAILABLE"
+    static let updateNowActionIdentifier = "MACVIGIL_UPDATE_NOW"
+    static let viewReleaseActionIdentifier = "MACVIGIL_VIEW_RELEASE"
+    static let laterActionIdentifier = "MACVIGIL_UPDATE_LATER"
 
     private struct GitHubRelease: Decodable {
         let tagName: String
@@ -81,11 +88,11 @@ final class UpdateManager: ObservableObject {
     }
 
     /// Starts updater work independently of the MenuBarExtra content view.
-    /// This must be called from the application lifecycle so opening the menu
-    /// is never required to discover or notify about a new release.
+    /// Opening or clicking the menu-bar panel is never required for discovery.
     func startBackgroundMonitoring(isVigilActive: @escaping () -> Bool) {
         isVigilActiveProvider = isVigilActive
         refreshLaunchAtLoginState()
+        registerNotificationCategory()
 
         guard !backgroundMonitoringStarted else {
             startPeriodicChecks()
@@ -119,8 +126,6 @@ final class UpdateManager: ObservableObject {
         periodicTimer?.invalidate()
         guard automaticChecksEnabled else { return }
 
-        // Hourly keeps release notifications reasonably prompt without polling
-        // GitHub aggressively. The timer runs while the menu-bar app is alive.
         periodicTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.automaticChecksEnabled else { return }
@@ -135,7 +140,10 @@ final class UpdateManager: ObservableObject {
         isChecking = true
         lastError = nil
         if userInitiated { statusText = "Checking GitHub…" }
-        defer { isChecking = false }
+        defer {
+            isChecking = false
+            lastCheckAt = Date()
+        }
 
         do {
             var request = URLRequest(url: latestReleaseAPI)
@@ -194,8 +202,38 @@ final class UpdateManager: ObservableObject {
         }
     }
 
+    func handleNotificationAction(_ identifier: String) {
+        switch identifier {
+        case Self.updateNowActionIdentifier:
+            guard hasUpdate else {
+                Task { await checkForUpdates(userInitiated: true) }
+                return
+            }
+
+            if isVigilActiveProvider?() ?? false {
+                statusText = "Update ready. End the active Vigil session, then choose Update Now."
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            } else {
+                Task { await installAvailableUpdate() }
+            }
+
+        case Self.viewReleaseActionIdentifier:
+            openReleasePage()
+
+        case Self.laterActionIdentifier:
+            statusText = availableVersion.map { "MacVigil \($0) is waiting when you're ready." }
+
+        case UNNotificationDefaultActionIdentifier:
+            NSApplication.shared.activate(ignoringOtherApps: true)
+
+        default:
+            break
+        }
+    }
+
     func setLaunchAtLogin(_ enabled: Bool) {
         lastError = nil
+        launchAtLoginStatusText = nil
         do {
             if enabled {
                 if SMAppService.mainApp.status != .enabled {
@@ -205,8 +243,12 @@ final class UpdateManager: ObservableObject {
                 try SMAppService.mainApp.unregister()
             }
             refreshLaunchAtLoginState()
+            launchAtLoginStatusText = launchAtLoginEnabled
+                ? "MacVigil will start automatically when you sign in."
+                : "Launch at Login is off."
         } catch {
             refreshLaunchAtLoginState()
+            launchAtLoginStatusText = "Launch at Login change failed."
             lastError = "Could not change Launch at Login: \(error.localizedDescription)"
         }
     }
@@ -326,6 +368,31 @@ final class UpdateManager: ObservableObject {
         NSWorkspace.shared.open(releasePageURL ?? releasesPage)
     }
 
+    private func registerNotificationCategory() {
+        let update = UNNotificationAction(
+            identifier: Self.updateNowActionIdentifier,
+            title: "Update Now",
+            options: [.foreground]
+        )
+        let later = UNNotificationAction(
+            identifier: Self.laterActionIdentifier,
+            title: "Later",
+            options: []
+        )
+        let release = UNNotificationAction(
+            identifier: Self.viewReleaseActionIdentifier,
+            title: "View Release",
+            options: [.foreground]
+        )
+        let category = UNNotificationCategory(
+            identifier: Self.updateCategoryIdentifier,
+            actions: [update, later, release],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([category])
+    }
+
     private func prepareNotificationAuthorization() async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
@@ -352,8 +419,9 @@ final class UpdateManager: ObservableObject {
             content.title = "MacVigil \(version) is available"
             content.body = automaticInstallEnabled
                 ? "It will install automatically when MacVigil is idle."
-                : "Open MacVigil to update when you're ready."
+                : "Update now, postpone it, or view the release."
             content.sound = .default
+            content.categoryIdentifier = Self.updateCategoryIdentifier
 
             let request = UNNotificationRequest(
                 identifier: "macvigil-update-\(version)",
