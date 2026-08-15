@@ -2,6 +2,57 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.12.3] - 2026-08-15
+
+### Liquid Glass Settings
+
+Settings now carries the native macOS 26 Liquid Glass treatment throughout the Settings chrome instead of limiting glass to the menu-bar controls.
+
+On macOS 26 and later, MacVigil now uses Apple's real `glassEffect` for:
+
+- the Settings sidebar surface
+- the live Vigil status surface
+- the Settings detail header
+- the main Settings detail pane
+- major Settings actions
+- mode and duration controls
+
+The sidebar remains a native macOS `List` and preference content remains grouped `Form` content, so keyboard navigation, focus, selection, switches, sliders, and accessibility continue to use system behavior while the window itself has a consistent Liquid Glass identity.
+
+On macOS 13–15, these surfaces continue to fall back to standard system materials.
+
+### Clearer custom duration
+
+Custom duration is now written in plain hours and minutes while the slider is adjusted.
+
+Examples:
+
+- `45 minutes`
+- `1 hour`
+- `1 hour 30 minutes`
+- `4 hours`
+- `11 hours 15 minutes`
+
+Settings also keeps the compact representation such as `2h 30m` underneath the full wording, making longer durations easier to scan precisely.
+
+The menu-bar duration slider now shows the same human-readable wording and exposes that value to accessibility.
+
+### Runtime behavior unchanged
+
+This release does not change Vigil ownership or power behavior. Job Guard still owns its session until the last protected job finishes, live mode changes preserve ownership and timer continuity, and battery/thermal/closed-lid safety behavior remains unchanged.
+
+### README
+
+The README now documents Liquid Glass Settings surfaces and the human-readable custom duration display.
+
+### Safety
+
+MacVigil does not weaken macOS Lock Screen, password, thermal, battery, shutdown, or other mandatory system safety behavior.
+
+Closed-lid workloads can generate significant heat. Keep a MacBook on a hard, ventilated surface and never run sustained closed-lid workloads in a bag, sleeve, drawer, or other enclosed space.
+
+Brightness/backlight darkening is not a guarantee that the physical display panel is electrically powered off.
+
 ## [0.12.2] - 2026-08-15
 
 ### Native macOS 26 Liquid Glass
