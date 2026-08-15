@@ -2,6 +2,110 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.9.2] - 2026-08-15
+
+### Job Guard now survives live mode changes
+
+This patch fixes a session-ownership bug in Job Guard.
+
+When Job Guard is protecting a PID or a command, changing the active MacVigil mode now changes only the underlying power-protection profile. Job Guard stays attached to the same job and continues to own the session lifetime.
+
+For example, this is now supported without detaching Job Guard:
+
+**Compute Guard → Closed-Lid Eco → Full Awake**
+
+The protected PID/command, Job Guard elapsed time, and "run until the job finishes" behavior remain intact through the change.
+
+### Safer live handoffs
+
+MacVigil now distinguishes an intentional internal live reconfiguration from a real user-requested Stop Vigil action.
+
+This prevents the brief low-level stop/restart used to apply a new mode or option from being misinterpreted as the end of Job Guard.
+
+If the protected job finishes during that short handoff, MacVigil waits for the handoff to complete and then releases Vigil normally, so an indefinite session is not left behind.
+
+The updater also treats a live reconfiguration as an active session, preventing an automatic update from starting in the middle of a mode change.
+## [0.9.1] - 2026-08-15
+
+### Easier Stop Vigil and Update controls
+
+This patch focuses on the two actions that must always be easy to reach: stopping an active Vigil session and installing an available update.
+
+#### Larger critical actions
+
+When Vigil is active, MacVigil now exposes a large **Stop Vigil** button with a full-width hit target instead of relying only on the small Vigil switch.
+
+When an update is available, a large **Update to <version>** action is shown alongside it. These controls remain visually separated from the smaller configuration controls so they are easier to target with the pointer.
+
+#### Reliable stop-and-update confirmation
+
+If an update is requested while Vigil is active, the decision is now handled in a normal standalone macOS window rather than depending on a confirmation alert attached to the transient menu-bar panel.
+
+The window provides large buttons for:
+
+- **Stop Vigil & Update**
+- **Keep Vigil Running**
+- **View Release**
+
+It also shows the current Vigil mode and remaining timer before you stop the session.
+
+MacVigil restores normal sleep behavior before beginning the update. If the update cannot continue, the window stays open and reports the error instead of disappearing.
+
+### Interaction details
+
+- Stop and Update actions use larger native controls and explicit rectangular hit targets.
+- The buttons expose visible working states such as **Stopping…** and **Updating…**.
+- Update installation remains SHA-256 verified before the app is replaced.
+- Existing automatic-update behavior is unchanged: automatic installation still waits until no Vigil session is active.
+## [0.9.0] - 2026-08-15
+
+### Power Intelligence
+
+v0.9 adds a dedicated **Power Intelligence** view for understanding what a Vigil session is doing to the Mac over time.
+
+It shows:
+
+- current battery percentage and power source
+- current macOS thermal-pressure state
+- an estimated time to the configured battery reserve when macOS provides a usable discharge-time estimate
+- live Vigil session duration and starting/current battery state
+- the highest thermal-pressure state seen during the active session
+- lightweight history for recent Vigil sessions, including duration, battery change, and peak thermal pressure
+
+A compact Power Intelligence row is also available directly from the menu-bar panel.
+
+### Safer sustained closed-lid work
+
+A new **Require external power** option can be enabled for closed-lid protection.
+
+When enabled, MacVigil releases an active closed-lid Vigil if the Mac switches to battery power. This is useful for sustained local-AI, build, render, and other high-load workloads that you only want to run closed-lid while plugged in.
+
+The existing configurable battery reserve remains available when closed-lid operation on battery is allowed.
+
+### Thermal warnings
+
+While Vigil is active, MacVigil now surfaces **Serious** and **Critical** macOS thermal-pressure states more prominently and can send a local notification when thermal pressure rises.
+
+MacVigil still does not attempt to override mandatory macOS thermal, critical-battery, shutdown, or hardware safety behavior.
+
+### Repeatable benchmark harness
+
+The repository now includes `scripts/power-benchmark.sh` for repeatable baseline data collection.
+
+The harness records:
+
+- hardware and macOS metadata
+- current power settings and power assertions
+- timed battery-percentage samples
+- power-source state
+- macOS-reported remaining-time text
+- `pmset` thermal snapshots
+- initial and final raw battery-registry information when available
+
+See `docs/POWER-BENCHMARKS.md` for the comparison protocol.
+
+The harness is deliberately conservative: coarse battery-percentage sampling is **not** presented as precise whole-system energy measurement, and MacVigil still makes no blanket claim that it uses less power than another utility without reproducible measurements.
+
 ## [0.8.0] - 2026-08-15
 
 ### Added
