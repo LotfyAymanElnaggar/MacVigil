@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Swift / Xcode
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Local build output
+build/
+
+# Signing / notarization material
+*.p12
+*.cer
+*.provisionprofile
+*.mobileprovision
+
+# Local environment
+.env
+.env.*
+!.env.example
