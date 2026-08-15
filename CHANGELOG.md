@@ -2,6 +2,28 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.8.0] - 2026-08-15
+
+### Added
+
+- local smart workload suggestions in Job Guard for common AI agents, local-AI runtimes, build tools, container runtimes, development servers, and transfer jobs
+- workload-category labels and icons in both suggested and full process lists
+- background process scan at app launch so likely workloads can be surfaced before Job Guard is opened
+- curated, versioned GitHub release notes under `release-notes/`
+
+### Changed
+
+- Job Guard now places likely long-running developer workloads at the top as opt-in suggestions while keeping the full process picker available
+- process search can match workload categories as well as process names, paths, and PIDs
+- the main menu-bar panel can indicate when Job Guard has likely workloads ready for review
+- release automation uses human-written notes for a version when they are available and falls back to GitHub-generated notes otherwise
+
+### Safety & privacy
+
+- workload detection is advisory only: MacVigil never starts Vigil or attaches to a detected process without explicit user action
+- detection uses the local process list and does not require telemetry, an account, or a cloud service
+- heuristic matches may be incomplete or imperfect; users can always choose any process manually
+
 ## [0.7.0] - 2026-08-15
 
 ### Added
