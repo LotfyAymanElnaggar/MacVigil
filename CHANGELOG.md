@@ -2,6 +2,29 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.6.0] - 2026-08-15
+
+### Added
+
+- **Job Guard** for job-aware Vigil sessions
+- watch an existing PID and automatically release Vigil when that process exits
+- launch a non-interactive `/bin/zsh -lc` command and keep Vigil active until the command finishes
+- captured command output with an **Open Log** action
+- a persistent Job Guard status bar in the menu-bar window plus a dedicated configuration sheet
+- automatic restoration of the user's normal duration preference after a Job Guard completes
+
+### Changed
+
+- Job Guard switches the active session to an indefinite job-owned duration so a guessed timer cannot expire before the protected work finishes
+- mode and protection controls remain live while Job Guard is active
+- the public README now explains job-aware sessions without exposing implementation detail
+
+### Safety
+
+- stopping Vigil manually detaches Job Guard rather than pretending the job is still protected
+- detaching Job Guard leaves the actual job running and leaves Vigil in its current state
+- commands are explicitly non-interactive and run from the user's home directory; interactive terminal integration remains future work
+
 ## [0.5.0] - 2026-08-15
 
 ### Added
