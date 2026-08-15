@@ -203,6 +203,7 @@ jobs:
             MacVigil/UI/PowerIntelligenceView.swift
             MacVigil/UI/PowerIntelligenceBar.swift
             MacVigil/UI/InteractionReliabilityView.swift
+            MacVigil/UI/JobGuardWindowView.swift
             MacVigil/UI/LiquidGlassMenuView.swift
             MacVigil/UI/MacVigilSettingsView.swift
             MacVigil/UI/SettingsSceneContainer.swift
