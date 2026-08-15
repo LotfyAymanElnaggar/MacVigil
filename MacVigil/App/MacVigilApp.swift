@@ -23,7 +23,6 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
                 return manager.isActive || manager.isLiveReconfiguring
             })
             self.power?.startBackgroundMonitoring()
-
             await self.jobs?.refreshProcesses()
         }
     }
@@ -80,58 +79,57 @@ struct MacVigilApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MacVigilInteractiveRootView(
+            LiquidGlassMenuView(
                 manager: manager,
                 updater: updater,
                 jobs: jobs,
                 power: power
             )
-            .onAppear {
-                appDelegate.manager = manager
-                appDelegate.updater = updater
-                appDelegate.jobs = jobs
-                appDelegate.power = power
-            }
+            .onAppear { refreshDelegateReferences() }
         } label: {
             Image(systemName: updater.hasUpdate ? "arrow.down.circle.fill" : (manager.isActive ? "bolt.shield.fill" : "bolt.shield"))
                 .accessibilityLabel(updater.hasUpdate ? "MacVigil update available" : "MacVigil")
         }
         .menuBarExtraStyle(.window)
 
+        Window("MacVigil Settings", id: "settings") {
+            MacVigilSettingsView(
+                manager: manager,
+                updater: updater,
+                jobs: jobs,
+                power: power
+            )
+            .onAppear { refreshDelegateReferences() }
+        }
+        .defaultSize(width: 900, height: 650)
+        .windowResizability(.contentSize)
+
         Window("Job Guard", id: "job-guard") {
             ReliableJobGuardWindowView(manager: manager, updater: updater, jobs: jobs)
-                .onAppear {
-                    appDelegate.manager = manager
-                    appDelegate.updater = updater
-                    appDelegate.jobs = jobs
-                    appDelegate.power = power
-                }
+                .onAppear { refreshDelegateReferences() }
         }
         .defaultSize(width: 650, height: 740)
         .windowResizability(.contentSize)
 
         Window("Power Intelligence", id: "power-intelligence") {
             PowerIntelligenceView(manager: manager, power: power)
-                .onAppear {
-                    appDelegate.manager = manager
-                    appDelegate.updater = updater
-                    appDelegate.jobs = jobs
-                    appDelegate.power = power
-                }
+                .onAppear { refreshDelegateReferences() }
         }
         .defaultSize(width: 520, height: 650)
         .windowResizability(.contentSize)
 
         Window("Update MacVigil", id: "update-confirmation") {
             UpdateConfirmationWindowView(manager: manager, updater: updater)
-                .onAppear {
-                    appDelegate.manager = manager
-                    appDelegate.updater = updater
-                    appDelegate.jobs = jobs
-                    appDelegate.power = power
-                }
+                .onAppear { refreshDelegateReferences() }
         }
         .defaultSize(width: 470, height: 350)
         .windowResizability(.contentSize)
+    }
+
+    private func refreshDelegateReferences() {
+        appDelegate.manager = manager
+        appDelegate.updater = updater
+        appDelegate.jobs = jobs
+        appDelegate.power = power
     }
 }
