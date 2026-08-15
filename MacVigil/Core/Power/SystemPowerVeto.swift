@@ -5,6 +5,7 @@ import IOKit.pwr_mgt
 extension Notification.Name {
     static let macVigilSystemPoweredOn = Notification.Name("MacVigil.SystemPoweredOn")
     static let macVigilSleepVetoed = Notification.Name("MacVigil.SleepVetoed")
+    static let macVigilSystemWillSleep = Notification.Name("MacVigil.SystemWillSleep")
 }
 
 private let kIOMessageCanSystemSleepRaw: UInt32 = 0xE0000270
@@ -62,7 +63,11 @@ final class SystemPowerVeto {
             }
 
         case kIOMessageSystemWillSleepRaw:
-            // Mandatory system/safety sleep is acknowledged rather than defeated.
+            // This notification must be acknowledged. Recording it lets the app
+            // distinguish a real system sleep transition from display-only sleep.
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .macVigilSystemWillSleep, object: nil)
+            }
             IOAllowPowerChange(rootPowerPort, notificationID)
 
         case kIOMessageSystemHasPoweredOnRaw:
