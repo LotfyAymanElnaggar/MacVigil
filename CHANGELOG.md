@@ -2,6 +2,19 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.6.1] - 2026-08-15
+
+### Fixed
+
+- Job Guard no longer uses a transient SwiftUI sheet attached to the menu-bar window
+- PID and command text fields now live in a dedicated MacVigil window so they keep keyboard focus and remain interactive
+- pressing Return in either Job Guard field now starts the corresponding action when the input is valid
+
+### Changed
+
+- **Configure / Manage Job Guard** opens a normal macOS window that can stay open independently of the menu-bar panel
+- Job Guard continues to share the same live Vigil, PID, command, log, and completion state with the menu-bar app
+
 ## [0.6.0] - 2026-08-15
 
 ### Added
