@@ -25,32 +25,65 @@ MacVigil keeps that work protected while giving you control over what stays awak
 
 **Keep the work running. Not everything else.**
 
-## Liquid Glass control panel
+## Easier everyday controls
 
-MacVigil uses a compact native macOS menu-bar panel built around translucent materials, layered glass cards, large hit targets, and clear selected states.
+The menu-bar panel is intentionally focused on the actions you use most:
 
-The main panel keeps everyday controls together:
+- one large **Start Vigil / Stop Vigil** action
+- selectable **Compute Guard**, **Closed-Lid Eco**, and **Full Awake** modes
+- quick **15m, 30m, 1h, 2h, 4h, and Infinity** duration buttons
+- a custom duration slider from 5 minutes to 12 hours
+- a battery reserve slider from 5–30%
+- direct buttons for **Job Guard**, **Statistics**, and **Settings**
+- a visible update action when a newer version is available
 
-- one-click **Vigil** on/off control
-- selectable **Compute Guard**, **Closed-Lid Eco**, and **Full Awake** mode cards
-- quick duration choices for **15m, 30m, 1h, 2h, 4h, and Infinity**
-- a slider for custom durations from minutes to hours
-- a battery-reserve slider
-- Job Guard status and protected-job count
-- large **Stop Vigil** and **Settings** actions
+The panel uses native translucent materials, large hit targets, concise status text, and clear selected states. Advanced protection switches stay in Settings instead of crowding the everyday workflow.
 
 Mode changes can be applied while Vigil is active without resetting the existing countdown or discarding a Job Guard-owned session.
 
+## Global hotkeys
+
+MacVigil can be controlled without opening the menu first. Global hotkeys are enabled by default and can be turned off from **Settings → Hotkeys**.
+
+| Action | Shortcut |
+| --- | --- |
+| Start / Stop Vigil | **⌥⌘V** |
+| Compute Guard | **⌥⌘1** |
+| Closed-Lid Eco | **⌥⌘2** |
+| Full Awake | **⌥⌘3** |
+
+Mode hotkeys change only the protection profile underneath the current session, so switching modes does not detach Job Guard or replace its lifetime ownership.
+
+Closed-lid authorization and safety rules still apply when hotkeys are used.
+
+## Statistics
+
+The **Statistics** dashboard summarizes recent Vigil activity locally on your Mac:
+
+- protected time
+- completed session count
+- average and longest session
+- last-seven-days activity view
+- protection-mode usage
+- current battery, thermal state, and reserve
+- recent session history with duration, battery change when available, and peak thermal state
+
+Statistics are based on MacVigil's retained local session history. Battery changes are observational rather than a measurement of MacVigil's energy efficiency, because charging state and workload intensity also affect them.
+
+No statistics telemetry is uploaded by MacVigil.
+
 ## Separate Settings window
 
-Advanced controls live in a dedicated Settings window instead of crowding the menu-bar panel. Settings are organized into:
+Advanced controls live in a dedicated Settings window. Settings are organized into:
 
-- **General** — launch at login, update defaults, mode, duration, battery reserve
+- **General** — launch at login, global hotkeys, mode, duration, battery reserve
 - **Vigil** — every major protection switch independently controllable
 - **Job Guard** — multi-job session behavior and management
+- **Statistics** — recent local Vigil activity
+- **Hotkeys** — global shortcut status and shortcut reference
 - **Updates** — background checks and automatic installation options
 - **Power & Safety** — battery, thermal, closed-lid authorization, and external-power policy
-- **Appearance** — native glass presentation and system appearance behavior
+- **Appearance** — native glass presentation and interaction design
 - **About** — version and project links
 
 ## Choose how your Mac stays awake
@@ -63,7 +96,7 @@ Best for AI agents, local models, builds, tests, servers, downloads, and remote 
 ### Closed-Lid Eco
 Keep work running with the MacBook lid closed while darkening the built-in display and applying battery and thermal safeguards.
 
-MacVigil can keep display sleep logically blocked while the lid is dark, helping avoid workflows being interrupted by display-sleep behavior. It does **not** change or weaken your macOS password or Lock Screen settings.
+MacVigil keeps display sleep logically blocked while the lid is dark so the protected workload is not dependent on ordinary display-sleep behavior. It does **not** change or weaken your macOS password or Lock Screen settings.
 
 ### Full Awake
 Keep both the Mac and display awake.
@@ -88,7 +121,7 @@ Job Guard can also suggest likely long-running local workloads such as AI runtim
 
 ## Power Intelligence
 
-MacVigil shows current battery and thermal state, estimates time to your configured battery reserve when macOS provides a usable discharge estimate, and keeps lightweight statistics for recent Vigil sessions.
+MacVigil shows current battery and thermal state, estimates time to your configured battery reserve when macOS provides a usable discharge estimate, and keeps lightweight local history for recent Vigil sessions.
 
 The battery reserve can be changed with a slider from the main panel or Settings. For sustained closed-lid workloads, you can optionally require external power so MacVigil releases closed-lid protection if the Mac switches to battery.
 
@@ -141,7 +174,7 @@ Closed-lid behavior is still being tested across Mac models and macOS versions. 
 
 ## Privacy
 
-MacVigil works locally. No account or cloud service is required to keep your Mac awake. Update checks contact GitHub only when update checking is enabled.
+MacVigil works locally. No account or cloud service is required to keep your Mac awake. Update checks contact GitHub only when update checking is enabled. Vigil statistics remain local.
 
 ## Project status
 
