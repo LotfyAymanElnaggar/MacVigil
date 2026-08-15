@@ -58,78 +58,55 @@ struct MacVigilSettingsView: View {
     }
 
     private var sidebar: some View {
-        VStack(spacing: 10) {
-            List(SettingsSection.allCases, selection: $selection) { item in
-                Label(item.rawValue, systemImage: item.icon)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .tag(item)
-            }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-
+        List(SettingsSection.allCases, selection: $selection) { item in
+            Label(item.rawValue, systemImage: item.icon)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .tag(item)
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("MacVigil")
+        .navigationSplitViewColumnWidth(min: 195, ideal: 220, max: 260)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             statusFooter
         }
-        .padding(10)
-        .modifier(MVSettingsGlassPane(cornerRadius: 22))
-        .padding(10)
-        .navigationTitle("MacVigil")
-        .navigationSplitViewColumnWidth(min: 210, ideal: 245, max: 285)
     }
 
     private var statusFooter: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 7) {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 8) {
                 Circle()
                     .fill(manager.isActive ? Color.green : Color.secondary)
-                    .frame(width: 8, height: 8)
-                Text(manager.isActive ? "Vigil active" : "Vigil idle")
-                    .font(.caption.weight(.semibold))
+                    .frame(width: 7, height: 7)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(manager.isActive ? "Vigil active" : "Vigil idle")
+                        .font(.caption.weight(.semibold))
+                    Text(manager.isActive ? manager.configurationName : "Normal sleep behavior")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                if hotkeys.enabled {
+                    Text("⌥⌘V")
+                        .font(.caption2.monospaced().weight(.medium))
+                        .foregroundStyle(.tertiary)
+                }
             }
-            Text(manager.isActive ? manager.configurationName : "Normal macOS sleep behavior")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            if hotkeys.enabled {
-                Text("⌥⌘V · Start / Stop")
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.tertiary)
-            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .modifier(MVSettingsInsetGlass(cornerRadius: 14))
+        .background(.bar)
     }
 
     private var detail: some View {
-        VStack(spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(currentSection.rawValue)
-                        .font(.title2.weight(.semibold))
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if #available(macOS 26.0, *) {
-                    Label("Liquid Glass", systemImage: "sparkles")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .glassEffect(.regular, in: Capsule())
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .modifier(MVSettingsGlassPane(cornerRadius: 20))
-
-            selectedContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .modifier(MVSettingsGlassPane(cornerRadius: 24))
-        }
-        .padding(12)
+        selectedContent
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle(currentSection.rawValue)
     }
 
     @ViewBuilder
@@ -182,18 +159,12 @@ struct MacVigilSettingsView: View {
             }
 
             SwiftUI.Section("Default mode") {
-                HStack(spacing: 10) {
-                    MVModeButton(profile: .computeGuard, selected: matches(.computeGuard)) {
-                        Task { _ = await manager.changeModeLive(.computeGuard) }
-                    }
-                    MVModeButton(profile: .closedLidEco, selected: matches(.closedLidEco)) {
-                        Task { _ = await manager.changeModeLive(.closedLidEco) }
-                    }
-                    MVModeButton(profile: .fullAwake, selected: matches(.fullAwake)) {
-                        Task { _ = await manager.changeModeLive(.fullAwake) }
-                    }
+                HStack(spacing: 8) {
+                    settingsModeButton(.computeGuard)
+                    settingsModeButton(.closedLidEco)
+                    settingsModeButton(.fullAwake)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 2)
             }
 
             SwiftUI.Section("Default duration") {
@@ -211,6 +182,7 @@ struct MacVigilSettingsView: View {
                     Task { _ = await manager.changeDurationLive(.custom, customMinutes: Int(durationMinutes.rounded())) }
                 }
                 .disabled(manager.isActive && manager.sessionOwner?.controlsLifetime == true)
+                .accessibilityValue(formatDurationWords(Int(durationMinutes.rounded())))
 
                 LabeledContent("Custom duration") {
                     VStack(alignment: .trailing, spacing: 2) {
@@ -448,7 +420,7 @@ struct MacVigilSettingsView: View {
             }
 
             SwiftUI.Section {
-                Text("On macOS 26 and later, the Settings sidebar, status surface, detail header, detail pane, mode controls, duration controls, and major actions use Apple's native Liquid Glass APIs. Forms stay readable inside the glass panes. Earlier macOS releases use standard system materials as a compatibility fallback.")
+                Text("Settings follows the native macOS hierarchy: an integrated system sidebar, standard grouped preference content, native switches and sliders, and system-styled actions. MacVigil does not place custom full-pane glass backgrounds behind Settings. On macOS 26 and later, the system can apply Liquid Glass where it belongs in navigation and controls; earlier releases use their native standard appearance.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -486,25 +458,11 @@ struct MacVigilSettingsView: View {
         }
     }
 
-    private var subtitle: String {
-        switch currentSection {
-        case .general: return "The settings you use most often."
-        case .vigil: return "Fine-grained protection controls and safe live changes."
-        case .jobGuard: return "Protect multiple jobs until the final selected job finishes."
-        case .statistics: return "Recent local session, battery, thermal, and mode summaries."
-        case .hotkeys: return "Control Vigil without opening the menu first."
-        case .updates: return "Background update discovery and installation."
-        case .power: return "Battery, thermal, and closed-lid safety."
-        case .appearance: return "Native macOS presentation and Liquid Glass Settings chrome."
-        case .about: return "Version and project information."
-        }
-    }
-
     private var nativeGlassStatus: String {
         if #available(macOS 26.0, *) {
-            return "Native Liquid Glass · Settings + controls"
+            return "Native system hierarchy + Liquid Glass controls"
         }
-        return "Standard material compatibility mode"
+        return "Native standard macOS appearance"
     }
 
     private var updateStatus: String {
@@ -519,32 +477,44 @@ struct MacVigilSettingsView: View {
             content()
         }
         .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(Color.clear)
     }
 
     @ViewBuilder
     private func settingsActionButton(_ title: String, prominent: Bool = false, action: @escaping () -> Void) -> some View {
-        if #available(macOS 26.0, *) {
-            if prominent {
-                Button(title, action: action)
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.large)
-            } else {
-                Button(title, action: action)
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
-            }
+        if prominent {
+            Button(title, action: action)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
         } else {
-            if prominent {
-                Button(title, action: action)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-            } else {
-                Button(title, action: action)
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-            }
+            Button(title, action: action)
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+        }
+    }
+
+    @ViewBuilder
+    private func settingsModeButton(_ profile: RuntimeProfile) -> some View {
+        let button = Button {
+            Task { _ = await manager.changeModeLive(profile) }
+        } label: {
+            Label(profile.title, systemImage: modeIcon(profile))
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+        }
+        .controlSize(.large)
+
+        if matches(profile) {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button.buttonStyle(.bordered)
+        }
+    }
+
+    private func modeIcon(_ profile: RuntimeProfile) -> String {
+        switch profile {
+        case .computeGuard: return "cpu"
+        case .closedLidEco: return "leaf"
+        case .fullAwake: return "sun.max"
         }
     }
 
@@ -609,17 +579,25 @@ struct MacVigilSettingsView: View {
         }
     }
 
+    @ViewBuilder
     private func durationButton(_ title: String, _ duration: SessionDuration, _ custom: Int? = nil) -> some View {
         let selected = duration == .custom && custom != nil
             ? manager.selectedDuration == .custom && manager.customMinutes == custom
             : manager.selectedDuration == duration
 
-        return Button(title) {
+        let button = Button(title) {
             if let custom { durationMinutes = Double(custom) }
             Task { _ = await manager.changeDurationLive(duration, customMinutes: custom) }
         }
-        .buttonStyle(MVGlassPillButtonStyle(selected: selected))
+        .frame(maxWidth: .infinity)
+        .controlSize(.regular)
         .disabled(manager.isActive && manager.sessionOwner?.controlsLifetime == true)
+
+        if selected {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button.buttonStyle(.bordered)
+        }
     }
 
     private func matches(_ profile: RuntimeProfile) -> Bool {
@@ -662,35 +640,5 @@ struct MacVigilSettingsView: View {
             return "\(hours) hour\(hours == 1 ? "" : "s")"
         }
         return "\(hours) hour\(hours == 1 ? "" : "s") \(remainingMinutes) minute\(remainingMinutes == 1 ? "" : "s")"
-    }
-}
-
-private struct MVSettingsGlassPane: ViewModifier {
-    let cornerRadius: CGFloat
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        } else {
-            content
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
-    }
-}
-
-private struct MVSettingsInsetGlass: ViewModifier {
-    let cornerRadius: CGFloat
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content
-                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        } else {
-            content
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
     }
 }
