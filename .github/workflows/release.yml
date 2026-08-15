@@ -86,6 +86,7 @@ jobs:
             -framework IOKit
             -framework CryptoKit
             -framework UserNotifications
+            -framework ServiceManagement
           )
 
           for ARCH in arm64 x86_64; do
