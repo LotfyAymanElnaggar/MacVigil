@@ -1,0 +1,122 @@
+name: Release MacVigil
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' MacVigil/Info.plist)
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" MacVigil/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${GITHUB_RUN_NUMBER}" MacVigil/Info.plist
+
+      - name: Build universal app
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP="build/MacVigil.app"
+          MACOS_DIR="$APP/Contents/MacOS"
+          mkdir -p "$MACOS_DIR" build/arm64 build/x86_64
+
+          SRC=(
+            MacVigil/App/MacVigilApp.swift
+            MacVigil/Models/SessionDuration.swift
+            MacVigil/Core/ShellRunner.swift
+            MacVigil/Core/Power/PowerAssertions.swift
+            MacVigil/Core/Power/SystemPowerVeto.swift
+            MacVigil/Core/Lid/RootDomainLidGuard.swift
+            MacVigil/Core/Display/BacklightController.swift
+            MacVigil/Core/Runtime/VigilManager.swift
+            MacVigil/UI/MenuBarView.swift
+          )
+
+          COMMON=(
+            -parse-as-library
+            -O
+            -framework SwiftUI
+            -framework AppKit
+            -framework CoreGraphics
+            -framework IOKit
+          )
+
+          for ARCH in arm64 x86_64; do
+            xcrun --sdk macosx swiftc "${SRC[@]}" "${COMMON[@]}" \
+              -target "${ARCH}-apple-macos13.0" \
+              -o "build/${ARCH}/MacVigil"
+
+            xcrun --sdk macosx swiftc MacVigilWatchdog/Watchdog.swift \
+              -parse-as-library -O \
+              -framework CoreGraphics -framework IOKit \
+              -target "${ARCH}-apple-macos13.0" \
+              -o "build/${ARCH}/MacVigilWatchdog"
+          done
+
+          xcrun lipo -create build/arm64/MacVigil build/x86_64/MacVigil \
+            -output "$MACOS_DIR/MacVigil"
+          xcrun lipo -create build/arm64/MacVigilWatchdog build/x86_64/MacVigilWatchdog \
+            -output "$MACOS_DIR/MacVigilWatchdog"
+
+          cp MacVigil/Info.plist "$APP/Contents/Info.plist"
+          chmod +x "$MACOS_DIR/MacVigil" "$MACOS_DIR/MacVigilWatchdog"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+
+      - name: Create release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="build/dmg"
+          mkdir -p "$STAGE"
+          cp -R build/MacVigil.app "$STAGE/MacVigil.app"
+          ln -s /Applications "$STAGE/Applications"
+
+          hdiutil create \
+            -volname "MacVigil" \
+            -srcfolder "$STAGE" \
+            -ov -format UDZO \
+            "build/MacVigil-${VERSION}.dmg"
+
+          (cd build && shasum -a 256 "MacVigil-${VERSION}.dmg" > SHA256SUMS.txt)
+
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            "build/MacVigil-${VERSION}.dmg" \
+            "build/SHA256SUMS.txt" \
+            --title "MacVigil ${GITHUB_REF_NAME}" \
+            --generate-notes
+
+      - name: Upload manual-run artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacVigil-${{ env.VERSION }}
+          path: |
+            build/MacVigil-*.dmg
+            build/SHA256SUMS.txt
