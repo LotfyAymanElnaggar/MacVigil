@@ -2,6 +2,135 @@
 
 All notable MacVigil changes are documented here.
 
+## [0.14.2] - 2026-08-16
+
+### Settings usability cleanup
+
+This release is based directly on hands-on screenshots from v0.14.1 and focuses on removing dead UI, fixing cramped views, and exposing features that already existed in the runtime but were difficult to discover from the app.
+
+#### Appearance page removed
+
+The Settings sidebar no longer contains an Appearance page with no actionable controls.
+
+MacVigil follows the active macOS appearance. Native macOS 26 Liquid Glass remains used selectively where the operating system provides it, but there is no pretend appearance setting for behavior the app does not actually control.
+
+#### Start and Stop Vigil from Settings
+
+Settings → General now contains a dedicated **Vigil now** section with:
+
+- current active/idle state
+- current protection profile and remaining timer when active
+- a large **Start Vigil / Stop Vigil** button
+- visible startup errors when a session cannot begin
+
+The sidebar status footer also has a compact Start/Stop action, so Settings is no longer only a configuration window.
+
+#### Hotkey readability
+
+Shortcut glyphs in Settings are now spaced for readability, for example:
+
+```text
+⌥ ⌘ V
+⌥ ⌘ 1
+⌥ ⌘ 2
+⌥ ⌘ 3
+```
+
+This is a display-only improvement; registered key combinations and saved custom hotkeys are unchanged.
+
+### Responsive Statistics layout
+
+The Statistics dashboard no longer relies on a single fixed-width filter row.
+
+The previous layout could squeeze labels such as **Range** into vertical letter-by-letter text when Statistics was embedded in the narrower Settings detail pane.
+
+The dashboard now uses:
+
+- a dedicated Filters group
+- full-width segmented range control
+- separate Mode and Owner controls with labels above them
+- adaptive metric cards
+- adaptive mode/owner/battery summary groups
+- responsive recent-session actions
+- safer line wrapping for battery, thermal, owner, and status text
+
+The standalone Statistics window is slightly wider as well, while the same dashboard continues to work inside Settings.
+
+### Rebuilt Job Guard window
+
+Job Guard has been rebuilt around the capabilities that are actually available in the current controller instead of hiding several of them.
+
+The new window includes:
+
+- a clearer protected-work summary
+- per-item Detach and Log controls
+- **Protect Suggested** when local workload suggestions are available
+- an explicit loading state while the process list refreshes
+- clearer empty/search states
+- manual PID entry
+- a dedicated **Watch a local TCP port** section
+- command working-directory display
+- **Choose Folder…** and **Home** controls
+- recent command history
+- clearer command logging text
+- a larger 760 × 780 layout to reduce cramped controls
+
+Port rows identify both the watched TCP port and current listener PID. Detach continues to stop monitoring without terminating the underlying process.
+
+### In-app CLI guide
+
+Settings now has a dedicated **CLI** page.
+
+It explains how to install `/usr/local/bin/macvigil` from the Settings toolbar and includes copyable examples for:
+
+```sh
+macvigil status
+macvigil status --json
+macvigil start --mode compute --duration 2h
+macvigil mode full-awake
+macvigil stop
+macvigil run -- npm test
+macvigil run --cwd ~/Projects/app -- npm run build
+macvigil watch-pid 43127
+macvigil watch-port 3000 5173
+macvigil protect-suggested
+```
+
+A saved-workflow example is included in the app as well.
+
+The guide also explains that CLI control stays local, shares the same Vigil runtime and Job Guard collection as the GUI, and does not expose a network control server.
+
+### Expanded About page
+
+About now explains more than the version number. It includes:
+
+- MacVigil's runtime-continuity purpose
+- common local workload categories
+- the lifetime-owner vs protection-profile model
+- local-data and telemetry behavior
+- closed-lid heat guidance
+- physical-display caveat
+- current ad-hoc signing / notarization status
+- GitHub repository, releases, and issue links
+
+### Documentation
+
+README has been synchronized with the Settings cleanup, responsive Statistics behavior, visible Job Guard controls, spaced shortcut presentation, and in-app CLI guide.
+
+### Release validation
+
+The v0.14.0 packaging regression cannot pass the current workflow: both normal CI and release CI now launch the built `MacVigil` executable and require it to remain alive before packaging or publishing succeeds.
+
+The GUI, watchdog, and CLI also continue to use separated build and bundle paths so the case-insensitive `MacVigil` / `macvigil` executable collision cannot recur.
+
+### Safety and distribution
+
+Closed-Lid Eco remains experimental. Long-running closed-lid workloads can generate significant heat; keep a MacBook on a hard, ventilated surface and never run sustained workloads in a bag, sleeve, drawer, or other enclosed space.
+
+Brightness 0 is not a guarantee that the physical display panel is electrically powered off. Mandatory macOS battery, thermal, shutdown, and Lock Screen behavior remains in control.
+
+MacVigil remains ad-hoc signed rather than Developer ID signed and notarized.
+
 ## [0.14.1] - 2026-08-15
 
 ### Critical launch hotfix
