@@ -27,15 +27,15 @@ MacVigil keeps that work protected while letting you choose exactly what stays a
 
 ## Native macOS interface
 
-On **macOS 26 and later**, MacVigil uses Apple's actual SwiftUI Liquid Glass APIs for important interactive controls and lets standard macOS navigation and controls adopt the system design automatically. It no longer tries to imitate Liquid Glass with custom blue/purple gradients or heavy blur layers.
+On **macOS 26 and later**, MacVigil uses Apple's actual SwiftUI Liquid Glass APIs for the menu controls **and the Settings window chrome**. It no longer tries to imitate Liquid Glass with custom blue/purple gradients or heavy blur layers.
 
-The design follows the system hierarchy instead:
+The design uses native system behavior throughout:
 
 - native `NavigationSplitView` + sidebar `List` for Settings
-- native grouped `Form` sections for preferences
+- native Liquid Glass on the Settings sidebar surface, status surface, detail header, and detail pane on macOS 26+
+- native grouped `Form` sections kept readable inside those glass panes
 - system toggles, sliders, labels, buttons, and selection behavior
-- native Liquid Glass for important floating/interactive controls such as mode cards, duration choices, Start/Stop, update actions, and quick destinations on macOS 26+
-- standard system materials for content surfaces instead of turning every card into glass
+- native Liquid Glass for mode cards, duration choices, Start/Stop, update actions, and quick destinations on macOS 26+
 - compatibility fallback to standard macOS materials and controls on macOS 13–15
 
 The interaction rule remains simple: **the whole visible control is clickable**. You do not need to aim directly at its label text.
@@ -45,7 +45,7 @@ The menu-bar panel keeps the everyday workflow compact:
 - one large **Start Vigil / Stop Vigil** action
 - **Compute Guard**, **Closed-Lid Eco**, and **Full Awake** mode controls
 - **15m, 30m, 1h, 2h, 4h, and Infinity** quick durations
-- a custom duration slider from 5 minutes to 12 hours
+- a custom duration slider from 5 minutes to 12 hours with a live human-readable hours/minutes label
 - a battery reserve slider from 5–30%
 - direct **Job Guard**, **Statistics**, and **Settings** destinations
 - a visible update action when a new release is available
@@ -54,9 +54,11 @@ Advanced protection switches stay in Settings instead of crowding the everyday p
 
 ## Settings
 
-Settings uses native macOS navigation rather than a hand-built glass sidebar. The sidebar is a system `List`, so selection, row hit targets, keyboard navigation, focus, hover behavior, spacing, and appearance follow macOS conventions automatically.
+Settings combines native macOS navigation with native Liquid Glass chrome. On macOS 26+, the sidebar, status footer, section header, and detail surface are rendered with Apple's real glass effect while the grouped Forms remain legible inside the glass pane.
 
-The detail area uses grouped system forms with dedicated sections:
+The sidebar is still a system `List`, so selection, row hit targets, keyboard navigation, focus, hover behavior, spacing, and appearance follow macOS conventions automatically.
+
+Settings has dedicated sections for:
 
 - **General** — launch at login, global hotkeys, mode, duration, battery reserve
 - **Vigil** — every major protection behavior independently controllable
@@ -90,7 +92,9 @@ Mode changes can be applied while Vigil is active without resetting an existing 
 
 ## Duration and battery reserve
 
-Choose a quick duration or tune it with the duration slider. Timed sessions can be intentionally changed while active; simply switching protection mode preserves the existing deadline.
+Choose a quick duration or tune it with the duration slider. The custom duration is shown both compactly and in plain language — for example **`2h 30m`** and **`2 hours 30 minutes`** — so long durations are easier to read while adjusting the slider.
+
+Timed sessions can be intentionally changed while active; simply switching protection mode preserves the existing deadline.
 
 Job Guard is different: while Job Guard owns the session lifetime, ordinary duration controls cannot replace that ownership.
 
