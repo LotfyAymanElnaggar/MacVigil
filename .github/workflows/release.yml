@@ -71,8 +71,8 @@ jobs:
             MacVigil/Core/Runtime/VigilManager.swift
             MacVigil/Core/Runtime/PreferenceStore.swift
             MacVigil/Core/Runtime/LiveReconfiguration.swift
-            MacVigil/UI/MenuBarView.swift
-            MacVigil/UI/LiveMenuBarView.swift
+            MacVigil/Core/Updates/UpdateManager.swift
+            MacVigil/UI/PolishedMenuBarView.swift
           )
 
           COMMON=(
@@ -82,6 +82,8 @@ jobs:
             -framework AppKit
             -framework CoreGraphics
             -framework IOKit
+            -framework CryptoKit
+            -framework UserNotifications
           )
 
           for ARCH in arm64 x86_64; do
