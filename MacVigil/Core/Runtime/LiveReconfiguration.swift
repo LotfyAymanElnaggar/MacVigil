@@ -12,6 +12,27 @@ enum VigilOption {
     case enableThermalSafety
 }
 
+enum VigilSessionOwner: Equatable {
+    case user
+    case jobGuard(UUID)
+    case commandLine(UUID)
+
+    var title: String {
+        switch self {
+        case .user: return "the normal Vigil session"
+        case .jobGuard: return "Job Guard"
+        case .commandLine: return "the MacVigil CLI"
+        }
+    }
+
+    var controlsLifetime: Bool {
+        switch self {
+        case .user: return false
+        case .jobGuard, .commandLine: return true
+        }
+    }
+}
+
 @MainActor
 private enum LiveSessionContinuity {
     struct Entry {
@@ -21,6 +42,7 @@ private enum LiveSessionContinuity {
 
     static var entries: [ObjectIdentifier: Entry] = [:]
     static var reconfiguringManagers: Set<ObjectIdentifier> = []
+    static var owners: [ObjectIdentifier: VigilSessionOwner] = [:]
 
     static func deadline(for manager: VigilManager) -> Date? {
         entries[ObjectIdentifier(manager)]?.deadline
@@ -52,6 +74,29 @@ private enum LiveSessionContinuity {
     static func isReconfiguring(_ manager: VigilManager) -> Bool {
         reconfiguringManagers.contains(ObjectIdentifier(manager))
     }
+
+    static func owner(for manager: VigilManager) -> VigilSessionOwner? {
+        owners[ObjectIdentifier(manager)]
+    }
+
+    static func claimOwner(_ owner: VigilSessionOwner, for manager: VigilManager) -> Bool {
+        let key = ObjectIdentifier(manager)
+        if let current = owners[key], current != .user, current != owner {
+            return false
+        }
+        owners[key] = owner
+        return true
+    }
+
+    static func releaseOwner(_ owner: VigilSessionOwner, for manager: VigilManager) {
+        let key = ObjectIdentifier(manager)
+        guard owners[key] == owner else { return }
+        owners.removeValue(forKey: key)
+    }
+
+    static func clearOwner(for manager: VigilManager) {
+        owners.removeValue(forKey: ObjectIdentifier(manager))
+    }
 }
 
 @MainActor
@@ -72,24 +117,45 @@ extension VigilManager {
 
     /// True only while MacVigil is deliberately rebuilding an active session
     /// to apply a live mode, option, or duration change. Controllers that own
-    /// the lifetime of the session (for example Job Guard) must treat this as
-    /// continuity, not as the user stopping Vigil.
+    /// the lifetime of the session must treat this as continuity, not a stop.
     var isLiveReconfiguring: Bool {
         LiveSessionContinuity.isReconfiguring(self)
     }
 
-    func startFreshSession() async {
-        LiveSessionContinuity.clear(for: self)
-        await startSelectedSession()
+    /// The component that currently owns *when* the Vigil session ends.
+    /// Protection mode and individual switches can still change underneath it.
+    var sessionOwner: VigilSessionOwner? {
+        LiveSessionContinuity.owner(for: self)
     }
 
+    @discardableResult
+    func claimSessionOwnership(_ owner: VigilSessionOwner) -> Bool {
+        LiveSessionContinuity.claimOwner(owner, for: self)
+    }
+
+    func releaseSessionOwnership(_ owner: VigilSessionOwner) {
+        LiveSessionContinuity.releaseOwner(owner, for: self)
+    }
+
+    func startFreshSession(owner: VigilSessionOwner = .user) async {
+        LiveSessionContinuity.clear(for: self)
+        guard claimSessionOwnership(owner) else { return }
+        await startSelectedSession()
+        if !isActive {
+            releaseSessionOwnership(owner)
+        }
+    }
+
+    /// A real user/controller stop clears both timer continuity and lifetime
+    /// ownership. Internal live handoffs call stopSession() directly instead.
     func stopLiveSession() async {
         LiveSessionContinuity.clear(for: self)
         await stopSession()
+        LiveSessionContinuity.clearOwner(for: self)
     }
 
     /// Changes a single protection option while preserving the exact active
-    /// session deadline and any higher-level owner such as Job Guard.
+    /// session deadline and higher-level lifetime owner such as Job Guard.
     func changeOptionLive(_ option: VigilOption, to enabled: Bool) async -> Bool {
         if !isActive {
             setOption(option, to: enabled)
@@ -156,10 +222,14 @@ extension VigilManager {
         return await restartFromLiveSnapshot(snapshot)
     }
 
-    /// A deliberate duration change starts a new countdown. Mode and option
-    /// changes do not. The active-session handoff is still marked as internal
-    /// so Job Guard and the updater do not mistake it for a user stop.
+    /// A deliberate user duration change starts a new countdown. A controller
+    /// such as Job Guard owns the lifetime instead, so duration cannot replace
+    /// that lifetime while the owned session is active.
     func changeDurationLive(_ duration: SessionDuration, customMinutes: Int? = nil) async -> Bool {
+        if isActive, sessionOwner?.controlsLifetime == true {
+            return false
+        }
+
         let wasActive = isActive
         if wasActive {
             LiveSessionContinuity.beginReconfiguration(for: self)
@@ -244,10 +314,6 @@ extension VigilManager {
                 return false
             }
 
-            // The regular timer API accepts whole custom minutes. Start it at a
-            // ceiling value, then keep the original exact deadline as the
-            // authoritative countdown and expiry. This prevents any visible or
-            // behavioral timer reset during live reconfiguration.
             selectedDuration = .custom
             customMinutes = max(1, Int(ceil(remaining / 60.0)))
             await startSelectedSession()
@@ -285,6 +351,7 @@ extension VigilManager {
             LiveSessionContinuity.clear(for: self)
             if self.isActive {
                 await self.stopSession()
+                LiveSessionContinuity.clearOwner(for: self)
             }
         }
     }
