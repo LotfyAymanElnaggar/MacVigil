@@ -125,14 +125,14 @@ struct MacVigilApp: App {
             StatisticsWindowView(manager: manager, power: power)
                 .onAppear { refreshDelegateReferences() }
         }
-        .defaultSize(width: 760, height: 650)
+        .defaultSize(width: 860, height: 720)
         .windowResizability(.contentSize)
 
         Window("Job Guard", id: "job-guard") {
-            ReliableJobGuardWindowView(manager: manager, updater: updater, jobs: jobs)
+            ImprovedJobGuardWindowView(manager: manager, updater: updater, jobs: jobs)
                 .onAppear { refreshDelegateReferences() }
         }
-        .defaultSize(width: 650, height: 740)
+        .defaultSize(width: 760, height: 780)
         .windowResizability(.contentSize)
 
         Window("Power Intelligence", id: "power-intelligence") {
