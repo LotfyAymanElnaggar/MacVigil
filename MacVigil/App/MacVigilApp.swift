@@ -6,6 +6,7 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
     weak var manager: VigilManager?
     weak var updater: UpdateManager?
     weak var jobs: JobAwareController?
+    weak var power: PowerIntelligenceController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
@@ -20,6 +21,7 @@ final class MacVigilAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
             updater.startBackgroundMonitoring(isVigilActive: { [weak manager] in
                 manager?.isActive ?? false
             })
+            self.power?.startBackgroundMonitoring()
 
             // Build the first local Job Guard suggestion set without waiting
             // for the menu or Job Guard window to be opened.
@@ -58,19 +60,23 @@ struct MacVigilApp: App {
     @StateObject private var manager: VigilManager
     @StateObject private var updater: UpdateManager
     @StateObject private var jobs: JobAwareController
+    @StateObject private var power: PowerIntelligenceController
 
     init() {
         let manager = VigilManager()
         let updater = UpdateManager()
         let jobs = JobAwareController(manager: manager)
+        let power = PowerIntelligenceController(manager: manager)
 
         _manager = StateObject(wrappedValue: manager)
         _updater = StateObject(wrappedValue: updater)
         _jobs = StateObject(wrappedValue: jobs)
+        _power = StateObject(wrappedValue: power)
 
         appDelegate.manager = manager
         appDelegate.updater = updater
         appDelegate.jobs = jobs
+        appDelegate.power = power
     }
 
     var body: some Scene {
@@ -80,6 +86,7 @@ struct MacVigilApp: App {
                     appDelegate.manager = manager
                     appDelegate.updater = updater
                     appDelegate.jobs = jobs
+                    appDelegate.power = power
                 }
         } label: {
             Image(systemName: updater.hasUpdate ? "arrow.down.circle.fill" : (manager.isActive ? "bolt.shield.fill" : "bolt.shield"))
@@ -93,9 +100,22 @@ struct MacVigilApp: App {
                     appDelegate.manager = manager
                     appDelegate.updater = updater
                     appDelegate.jobs = jobs
+                    appDelegate.power = power
                 }
         }
         .defaultSize(width: 580, height: 680)
+        .windowResizability(.contentSize)
+
+        Window("Power Intelligence", id: "power-intelligence") {
+            PowerIntelligenceView(manager: manager, power: power)
+                .onAppear {
+                    appDelegate.manager = manager
+                    appDelegate.updater = updater
+                    appDelegate.jobs = jobs
+                    appDelegate.power = power
+                }
+        }
+        .defaultSize(width: 520, height: 650)
         .windowResizability(.contentSize)
     }
 }
